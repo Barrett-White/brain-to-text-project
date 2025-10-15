@@ -1,0 +1,14 @@
+# Ignore the main data folder
+data/
+
+# Ignore Python virtual environments
+venv/
+*.env
+.env
+
+# Ignore IDE/editor-specific folders
+.vscode/
+.idea/
+
+# Ignore git clone folder
+nejm-brain-to-text/

@@ -12,8 +12,8 @@
 
 1.  **Clone the Repo**
     ```bash
-    git clone [https://github.com/your-username/your-repository-name.git](https://github.com/your-username/your-repository-name.git)
-    cd your-repository-name
+    git clone https://github.com/Sean0418/brain-to-text-project
+    cd brain-to-text-project
     ```
 
 2.  **One-Time Fix for Git Bash on Windows**

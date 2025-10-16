@@ -2,7 +2,7 @@
 data/
 
 # Ignore Python virtual environments
-venv/
+env/
 *.env
 .env
 
@@ -12,3 +12,4 @@ venv/
 
 # Ignore git clone folder
 nejm-brain-to-text/
+

@@ -1,0 +1,43 @@
+# Brain-to-Text Project
+
+
+## ## Prerequisites
+
+* **Git:** Install **Git Bash** for Windows from [git-scm.com](https://git-scm.com/).
+* **Conda:** Anaconda or Miniconda.
+
+---
+
+## ## Installation
+
+1.  **Clone the Repo**
+    ```bash
+    git clone [https://github.com/your-username/your-repository-name.git](https://github.com/your-username/your-repository-name.git)
+    cd your-repository-name
+    ```
+
+2.  **One-Time Fix for Git Bash on Windows**
+    * Open **Anaconda Prompt** and run `conda init bash`.
+    * Restart all your terminals.
+
+3.  **Run the Setup Script**
+    * In a new Git Bash terminal, run the following:
+    ```bash
+    chmod +x setup.sh
+    ./setup.sh
+    ```
+    This creates a local environment in `./env` and installs all packages. This step will take a few minutes.
+
+---
+
+## ## Usage
+
+1.  **Activate the Environment**
+    ```bash
+    conda activate ./env
+    ```
+
+2.  **Deactivate When Done**
+    ```bash
+    conda deactivate
+    ```

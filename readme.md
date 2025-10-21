@@ -45,3 +45,7 @@
     ```bash
     conda deactivate
     ```
+
+## Load Data
+
+Navigate to the [NEJM Data Github](https://github.com/Neuroprosthetics-Lab/nejm-brain-to-text/tree/main/data) to find instructions for downloading the correct dataset.

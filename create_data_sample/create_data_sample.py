@@ -141,3 +141,34 @@ def load_data_by_day_or_perc(
 
     print("\n Finished loading!")
     return final_datasets
+
+
+if __name__ == "__main__":
+    import os
+
+    import pandas as pd
+
+    seed = 8
+
+    base_directory = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..\data\hdf5_data_final"
+    )
+    data_set = load_data_by_day_or_perc(
+        base_directory, percent_of_days_to_read=20, seed=seed
+    )
+    train_data = pd.DataFrame(data_set["train"])
+    test_data = pd.DataFrame(data_set["test"])
+    val_data = pd.DataFrame(data_set["val"])
+
+    # Now, we can save all of these in our own data subfile
+    new_dirs = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..\data", "sampled_dataset"
+    )
+    os.makedirs(
+        new_dirs,
+        exist_ok=True,
+    )
+
+    train_data.to_csv(os.path.join(new_dirs, "train_data.csv"))
+    test_data.to_csv(os.path.join(new_dirs, "test_data.csv"))
+    val_data.to_csv(os.path.join(new_dirs, "val_data.csv"))

@@ -43,7 +43,8 @@ conda run --prefix ./env pip install \
     evaluate\
     nltk \
     rouge_score \
-    sentencepiece
+    sentencepiece\
+    braindecode
 
 echo
 echo "--- Setup Complete! ---"

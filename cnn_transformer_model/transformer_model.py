@@ -1,6 +1,6 @@
 import torch
-import pickle
 from huggingface_hub import hf_hub_download
+from braindecode.models import EEGNetv4
 
 from torch import nn
 
@@ -101,22 +101,13 @@ class CNNDecoder(nn.Module):
         self.out = nn.Linear(self.n_units, self.n_classes)
         nn.init.xavier_uniform_(self.out.weight)
 
-        # download the model from the hub:
-        path_kwargs = hf_hub_download(
-            repo_id="PierreGtch/EEGNetv4",
-            filename="EEGNetv4_Lee2019_MI/kwargs.pkl",
-        )
-        path_params = hf_hub_download(
+        # https://neurotechlab.socsci.ru.nl/resources/pretrained_imagery_models/
+        path = hf_hub_download(
             repo_id="PierreGtch/EEGNetv4",
             filename="EEGNetv4_Lee2019_MI/model-params.pkl",
         )
-        with open(path_kwargs, "rb") as f:
-            kwargs = pickle.load(f)
-        module_cls = kwargs["module_cls"]
-        module_kwargs = kwargs["module_kwargs"]
-
-        # load the model with pre-trained weights:
-        torch_module = module_cls(**module_kwargs)
+        net = EEGNetv4(3, 2, 385).eval()
+        net.load_state_dict(torch.load(path, map_location="cpu"))
 
         # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
         self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))

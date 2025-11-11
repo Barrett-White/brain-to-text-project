@@ -1,8 +1,81 @@
 import torch
 from torch import nn
 
-# Start with code from https://github.com/Neuroprosthetics-Lab/nejm-brain-to-text/blob/main/model_training/rnn_model.py
-# we will modify to make the model a transformer-based model instead of GRU
+# Currently using code from https://towardsdatascience.com/convolutional-neural-networks-for-eeg-brain-computer-interfaces-9ee9f3dd2b81/
+
+
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
+class EEGNET(nn.Module):
+    def __init__(self, filter_sizing, dropout, D, receptive_field=64):
+        super(EEGNET, self).__init__()
+        channel_amount = 8
+        num_classes = 3
+        self.temporal = nn.Sequential(
+            nn.Conv2d(
+                1,
+                filter_sizing,
+                kernel_size=[1, receptive_field],
+                stride=1,
+                bias=False,
+                padding="same",
+            ),
+            nn.BatchNorm2d(filter_sizing),
+        )
+        self.spatial = nn.Sequential(
+            nn.Conv2d(
+                filter_sizing,
+                filter_sizing * D,
+                kernel_size=[channel_amount, 1],
+                bias=False,
+                groups=filter_sizing,
+            ),
+            nn.BatchNorm2d(filter_sizing * D),
+            nn.ELU(True),
+        )
+
+        self.separable = nn.Sequential(
+            nn.Conv2d(
+                filter_sizing * D,
+                filter_sizing * D,
+                kernel_size=[1, 16],
+                padding="same",
+                groups=filter_sizing * D,
+                bias=False,
+            ),
+            nn.Conv2d(
+                filter_sizing * D,
+                filter_sizing * D,
+                kernel_size=[1, 1],
+                padding="same",
+                groups=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(filter_sizing * D),
+            nn.ELU(True),
+        )
+        self.avgpool1 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
+        self.avgpool2 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
+        self.dropout = nn.Dropout(dropout)
+        self.view = nn.Sequential(Flatten())
+
+        endsize = 320
+        self.fc2 = nn.Linear(endsize, num_classes)
+
+    def forward(self, x):
+        out = self.temporal(x)
+        out = self.spatial(out)
+        out = self.avgpool1(out)
+        out = self.dropout(out)
+        out = self.separable(out)
+        out = self.avgpool2(out)
+        out = self.dropout(out)
+        out = out.view(out.size(0), -1)
+        prediction = self.fc2(out)
+        return prediction
 
 
 class GRUDecoder(nn.Module):

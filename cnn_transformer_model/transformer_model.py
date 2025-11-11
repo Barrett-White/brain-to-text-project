@@ -9,78 +9,9 @@ class Flatten(nn.Module):
         return input.view(input.size(0), -1)
 
 
-class EEGNET(nn.Module):
-    def __init__(self, filter_sizing, dropout, D, receptive_field=64):
-        super(EEGNET, self).__init__()
-        channel_amount = 8
-        num_classes = 3
-        self.temporal = nn.Sequential(
-            nn.Conv2d(
-                1,
-                filter_sizing,
-                kernel_size=[1, receptive_field],
-                stride=1,
-                bias=False,
-                padding="same",
-            ),
-            nn.BatchNorm2d(filter_sizing),
-        )
-        self.spatial = nn.Sequential(
-            nn.Conv2d(
-                filter_sizing,
-                filter_sizing * D,
-                kernel_size=[channel_amount, 1],
-                bias=False,
-                groups=filter_sizing,
-            ),
-            nn.BatchNorm2d(filter_sizing * D),
-            nn.ELU(True),
-        )
-
-        self.separable = nn.Sequential(
-            nn.Conv2d(
-                filter_sizing * D,
-                filter_sizing * D,
-                kernel_size=[1, 16],
-                padding="same",
-                groups=filter_sizing * D,
-                bias=False,
-            ),
-            nn.Conv2d(
-                filter_sizing * D,
-                filter_sizing * D,
-                kernel_size=[1, 1],
-                padding="same",
-                groups=1,
-                bias=False,
-            ),
-            nn.BatchNorm2d(filter_sizing * D),
-            nn.ELU(True),
-        )
-        self.avgpool1 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
-        self.avgpool2 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
-        self.dropout = nn.Dropout(dropout)
-        self.view = nn.Sequential(Flatten())
-
-        endsize = 320
-        self.fc2 = nn.Linear(endsize, num_classes)
-
-    def forward(self, x):
-        out = self.temporal(x)
-        out = self.spatial(out)
-        out = self.avgpool1(out)
-        out = self.dropout(out)
-        out = self.separable(out)
-        out = self.avgpool2(out)
-        out = self.dropout(out)
-        out = out.view(out.size(0), -1)
-        prediction = self.fc2(out)
-        return prediction
-
-
-class GRUDecoder(nn.Module):
+class CNNDecoder(nn.Module):
     """
-    Defines the GRU decoder
+    Defines the CNN & Transformer encoder/ decoder
 
     This class combines day-specific input layers, a GRU, and an output classification layer
     """
@@ -91,11 +22,17 @@ class GRUDecoder(nn.Module):
         n_units,
         n_days,
         n_classes,
+        filter_sizing,
+        dropout,
+        D,
         rnn_dropout=0.0,
         input_dropout=0.0,
         n_layers=5,
         patch_size=0,
         patch_stride=0,
+        receptive_field=64,
+        channel_amount=8,
+        num_classes=3,
     ):
         """
         neural_dim  (int)      - number of channels in a single timestep (e.g. 512)
@@ -108,7 +45,7 @@ class GRUDecoder(nn.Module):
         patch_size  (int)      - the number of timesteps to concat on initial input layer - a value of 0 will disable this "input concat" step
         patch_stride(int)      - the number of timesteps to stride over when concatenating initial input
         """
-        super(GRUDecoder, self).__init__()
+        super(CNNDecoder, self).__init__()
 
         self.neural_dim = neural_dim
         self.n_units = n_units
@@ -161,6 +98,57 @@ class GRUDecoder(nn.Module):
         self.out = nn.Linear(self.n_units, self.n_classes)
         nn.init.xavier_uniform_(self.out.weight)
 
+        self.temporal = nn.Sequential(
+            nn.Conv2d(
+                1,
+                filter_sizing,
+                kernel_size=[1, receptive_field],
+                stride=1,
+                bias=False,
+                padding="same",
+            ),
+            nn.BatchNorm2d(filter_sizing),
+        )
+        self.spatial = nn.Sequential(
+            nn.Conv2d(
+                filter_sizing,
+                filter_sizing * D,
+                kernel_size=[channel_amount, 1],
+                bias=False,
+                groups=filter_sizing,
+            ),
+            nn.BatchNorm2d(filter_sizing * D),
+            nn.ELU(True),
+        )
+
+        self.separable = nn.Sequential(
+            nn.Conv2d(
+                filter_sizing * D,
+                filter_sizing * D,
+                kernel_size=[1, 16],
+                padding="same",
+                groups=filter_sizing * D,
+                bias=False,
+            ),
+            nn.Conv2d(
+                filter_sizing * D,
+                filter_sizing * D,
+                kernel_size=[1, 1],
+                padding="same",
+                groups=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(filter_sizing * D),
+            nn.ELU(True),
+        )
+        self.avgpool1 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
+        self.avgpool2 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
+        self.dropout = nn.Dropout(dropout)
+        self.view = nn.Sequential(Flatten())
+
+        endsize = 320
+        self.fc2 = nn.Linear(endsize, num_classes)
+
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
 
@@ -169,7 +157,15 @@ class GRUDecoder(nn.Module):
         x        (tensor)  - batch of examples (trials) of shape: (batch_size, time_series_length, neural_dim)
         day_idx  (tensor)  - tensor which is a list of day indexs corresponding to the day of each example in the batch x.
         """
-
+        out = self.temporal(x)
+        out = self.spatial(out)
+        out = self.avgpool1(out)
+        out = self.dropout(out)
+        out = self.separable(out)
+        out = self.avgpool2(out)
+        out = self.dropout(out)
+        out = out.view(out.size(0), -1)
+        prediction = self.fc2(out)
         # Apply day-specific layer to (hopefully) project neural data from the different days to the same latent space
         day_weights = torch.stack([self.day_weights[i] for i in day_idx], dim=0)
         day_biases = torch.cat([self.day_biases[i] for i in day_idx], dim=0).unsqueeze(

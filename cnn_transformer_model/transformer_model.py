@@ -1,12 +1,8 @@
 import torch
-from huggingface_hub import hf_hub_download
 from braindecode.models import EEGNetv4
-
+from huggingface_hub import hf_hub_download
 from torch import nn
-
-from transformers import T5Tokenizer, DataCollatorForSeq2Seq
-from transformers import T5ForConditionalGeneration
-
+from transformers import DataCollatorForSeq2Seq, T5ForConditionalGeneration, T5Tokenizer
 
 # Currently using code from https://towardsdatascience.com/convolutional-neural-networks-for-eeg-brain-computer-interfaces-9ee9f3dd2b81/
 
@@ -27,9 +23,8 @@ class CNNDecoder(nn.Module):
         n_units,
         n_days,
         n_classes,
-        filter_sizing,
-        dropout,
-        D,
+        eenet_model,
+        transformer_model,
         rnn_dropout=0.0,
         input_dropout=0.0,
         n_layers=5,
@@ -47,8 +42,15 @@ class CNNDecoder(nn.Module):
         n_layers    (int)      - number of recurrent layers
         patch_size  (int)      - the number of timesteps to concat on initial input layer - a value of 0 will disable this "input concat" step
         patch_stride(int)      - the number of timesteps to stride over when concatenating initial input
+        hidden_size (int)      - the hidden size of the transformer model
+        eenet_model (nn.Module) - pretrained EEGNet model for feature extraction
+        transformer_model (nn.Module) - pretrained Transformer model for sequence modeling
         """
         super(CNNDecoder, self).__init__()
+
+        # Assign pretrained models
+        self.eenet_model = eenet_model
+        self.transformer_model = transformer_model
 
         self.neural_dim = neural_dim
         self.n_units = n_units
@@ -101,14 +103,6 @@ class CNNDecoder(nn.Module):
         self.out = nn.Linear(self.n_units, self.n_classes)
         nn.init.xavier_uniform_(self.out.weight)
 
-        # https://neurotechlab.socsci.ru.nl/resources/pretrained_imagery_models/
-        path = hf_hub_download(
-            repo_id="PierreGtch/EEGNetv4",
-            filename="EEGNetv4_Lee2019_MI/model-params.pkl",
-        )
-        net = EEGNetv4(3, 2, 385).eval()
-        net.load_state_dict(torch.load(path, map_location="cpu"))
-
         # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
         self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
         # Create position embeddings for the [CLS] token and the patch embeddings
@@ -118,14 +112,6 @@ class CNNDecoder(nn.Module):
         )
 
         # Now, MLP and then transformer architecture
-
-        # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
-        # Load the tokenizer, model, and data collator
-        MODEL_NAME = "google/flan-t5-base"
-
-        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-        model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
-        data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
 
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
@@ -176,6 +162,8 @@ class CNNDecoder(nn.Module):
             ).contiguous()
 
         # Pass input through CNN
+        with torch.no_grad():
+            x = self.eenet_model(x)
 
         x = self.patch_embeddings(x)
         batch_size, _, _ = x.size()
@@ -188,6 +176,10 @@ class CNNDecoder(nn.Module):
         x = x + self.position_embeddings
         x = self.dropout(x)
 
+        # Pass through transformer model
+        with torch.no_grad():
+            output = self.transformer_model(x)
+
         # Compute logits
         logits = self.out(output)
 
@@ -195,3 +187,31 @@ class CNNDecoder(nn.Module):
             return logits, hidden_states
 
         return logits
+
+
+if __name__ == "__main__":
+    # https://neurotechlab.socsci.ru.nl/resources/pretrained_imagery_models/
+    path = hf_hub_download(
+        repo_id="PierreGtch/EEGNetv4",
+        filename="EEGNetv4_Lee2019_MI/model-params.pkl",
+    )
+    net = EEGNetv4(3, 2, 385).eval()
+    net.load_state_dict(torch.load(path, map_location="cpu"))
+
+    # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
+    # Load the tokenizer, model, and data collator
+    MODEL_NAME = "google/flan-t5-base"
+
+    tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+    model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
+
+    # The full model forward includes using these models in prediction
+    full_model = CNNDecoder(
+        neural_dim=385,
+        n_units=128,
+        n_days=5,
+        n_classes=2,
+        eenet_model=net,
+        transformer_model=model,
+    )

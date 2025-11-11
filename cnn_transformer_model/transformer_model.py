@@ -1,6 +1,10 @@
 import torch
 from torch import nn
 
+from transformers import T5Tokenizer, DataCollatorForSeq2Seq
+from transformers import T5ForConditionalGeneration
+
+
 # Currently using code from https://towardsdatascience.com/convolutional-neural-networks-for-eeg-brain-computer-interfaces-9ee9f3dd2b81/
 
 
@@ -159,6 +163,14 @@ class CNNDecoder(nn.Module):
         )
 
         # Now, MLP and then transformer architecture
+
+        # Transformer architecture
+        # Load the tokenizer, model, and data collator
+        MODEL_NAME = "google/flan-t5-base"
+
+        tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+        model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
+        data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
 
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))

@@ -1,4 +1,7 @@
 import torch
+import pickle
+from huggingface_hub import hf_hub_download
+
 from torch import nn
 
 from transformers import T5Tokenizer, DataCollatorForSeq2Seq
@@ -8,9 +11,7 @@ from transformers import T5ForConditionalGeneration
 # Currently using code from https://towardsdatascience.com/convolutional-neural-networks-for-eeg-brain-computer-interfaces-9ee9f3dd2b81/
 
 
-class Flatten(nn.Module):
-    def forward(self, input):
-        return input.view(input.size(0), -1)
+# We can utilize the actual EEGNet here: https://huggingface.co/PierreGtch/EEGNetv4
 
 
 class CNNDecoder(nn.Module):
@@ -34,9 +35,6 @@ class CNNDecoder(nn.Module):
         n_layers=5,
         patch_size=0,
         patch_stride=0,
-        receptive_field=64,
-        channel_amount=8,
-        num_classes=3,
         hidden_size=500,
     ):
         """
@@ -103,56 +101,22 @@ class CNNDecoder(nn.Module):
         self.out = nn.Linear(self.n_units, self.n_classes)
         nn.init.xavier_uniform_(self.out.weight)
 
-        self.temporal = nn.Sequential(
-            nn.Conv2d(
-                1,
-                filter_sizing,
-                kernel_size=[1, receptive_field],
-                stride=1,
-                bias=False,
-                padding="same",
-            ),
-            nn.BatchNorm2d(filter_sizing),
+        # download the model from the hub:
+        path_kwargs = hf_hub_download(
+            repo_id="PierreGtch/EEGNetv4",
+            filename="EEGNetv4_Lee2019_MI/kwargs.pkl",
         )
-        self.spatial = nn.Sequential(
-            nn.Conv2d(
-                filter_sizing,
-                filter_sizing * D,
-                kernel_size=[channel_amount, 1],
-                bias=False,
-                groups=filter_sizing,
-            ),
-            nn.BatchNorm2d(filter_sizing * D),
-            nn.ELU(True),
+        path_params = hf_hub_download(
+            repo_id="PierreGtch/EEGNetv4",
+            filename="EEGNetv4_Lee2019_MI/model-params.pkl",
         )
+        with open(path_kwargs, "rb") as f:
+            kwargs = pickle.load(f)
+        module_cls = kwargs["module_cls"]
+        module_kwargs = kwargs["module_kwargs"]
 
-        self.separable = nn.Sequential(
-            nn.Conv2d(
-                filter_sizing * D,
-                filter_sizing * D,
-                kernel_size=[1, 16],
-                padding="same",
-                groups=filter_sizing * D,
-                bias=False,
-            ),
-            nn.Conv2d(
-                filter_sizing * D,
-                filter_sizing * D,
-                kernel_size=[1, 1],
-                padding="same",
-                groups=1,
-                bias=False,
-            ),
-            nn.BatchNorm2d(filter_sizing * D),
-            nn.ELU(True),
-        )
-        self.avgpool1 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
-        self.avgpool2 = nn.AvgPool2d([1, 5], stride=[1, 5], padding=0)
-        self.dropout = nn.Dropout(dropout)
-        self.view = nn.Sequential(Flatten())
-
-        endsize = 320
-        self.fc2 = nn.Linear(endsize, num_classes)
+        # load the model with pre-trained weights:
+        torch_module = module_cls(**module_kwargs)
 
         # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
         self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
@@ -221,15 +185,6 @@ class CNNDecoder(nn.Module):
             ).contiguous()
 
         # Pass input through CNN
-        out = self.temporal(x)
-        out = self.spatial(out)
-        out = self.avgpool1(out)
-        out = self.dropout(out)
-        out = self.separable(out)
-        out = self.avgpool2(out)
-        out = self.dropout(out)
-        out = out.view(out.size(0), -1)
-        prediction = self.fc2(out)
 
         x = self.patch_embeddings(x)
         batch_size, _, _ = x.size()

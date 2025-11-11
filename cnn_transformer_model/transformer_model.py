@@ -25,7 +25,6 @@ class CNNDecoder(nn.Module):
         n_classes,
         eenet_model,
         transformer_model,
-        rnn_dropout=0.0,
         input_dropout=0.0,
         n_layers=5,
         patch_size=0,
@@ -37,7 +36,6 @@ class CNNDecoder(nn.Module):
         n_units     (int)      - number of hidden units in each recurrent layer - equal to the size of the hidden state
         n_days      (int)      - number of days in the dataset
         n_classes   (int)      - number of classes
-        rnn_dropout    (float) - percentage of units to droupout during training
         input_dropout (float)  - percentage of input units to dropout during training
         n_layers    (int)      - number of recurrent layers
         patch_size  (int)      - the number of timesteps to concat on initial input layer - a value of 0 will disable this "input concat" step
@@ -52,13 +50,13 @@ class CNNDecoder(nn.Module):
         self.eenet_model = eenet_model
         self.transformer_model = transformer_model
 
+        # Model structure from the baseline model
         self.neural_dim = neural_dim
         self.n_units = n_units
         self.n_classes = n_classes
         self.n_layers = n_layers
         self.n_days = n_days
 
-        self.rnn_dropout = rnn_dropout
         self.input_dropout = input_dropout
 
         self.patch_size = patch_size
@@ -83,6 +81,13 @@ class CNNDecoder(nn.Module):
         if self.patch_size > 0:
             self.input_size *= self.patch_size
 
+        # Learnable initial hidden states
+        self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
+
+        # Prediciton head. Weight init to xavier
+        self.out = nn.Linear(self.n_units, self.n_classes)
+
+        # Class and positional embeddings based on the paper we are implementing
         # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
         self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
         # Create position embeddings for the [CLS] token and the patch embeddings
@@ -91,19 +96,13 @@ class CNNDecoder(nn.Module):
             torch.randn(1, self.patch_embeddings.num_patches + 1, hidden_size)
         )
 
-        # Now, MLP and then transformer architecture
-
-        # Learnable initial hidden states
-        self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
-
-        # Prediciton head. Weight init to xavier
-        self.out = nn.Linear(self.n_units, self.n_classes)
-
-    def forward(self, x, day_idx, states=None, return_state=False):
+    def forward(self, x, day_idx, states=None):
         """
         x        (tensor)  - batch of examples (trials) of shape: (batch_size, time_series_length, neural_dim)
         day_idx  (tensor)  - tensor which is a list of day indexs corresponding to the day of each example in the batch x.
         """
+
+        ## FROM THE ORIGNAL BASELINE MODEL - REMOVED UNNEEDED PARTS ##
         # Apply day-specific layer to (hopefully) project neural data from the different days to the same latent space
         day_weights = torch.stack([self.day_weights[i] for i in day_idx], dim=0)
         day_biases = torch.cat([self.day_biases[i] for i in day_idx], dim=0).unsqueeze(
@@ -144,6 +143,7 @@ class CNNDecoder(nn.Module):
                 self.n_layers, x.shape[0], self.n_units
             ).contiguous()
 
+        ## NEW CNN CODE ##
         # Pass input through CNN
         with torch.no_grad():
             x = self.eenet_model(x)
@@ -159,15 +159,13 @@ class CNNDecoder(nn.Module):
         x = x + self.position_embeddings
         x = self.dropout(x)
 
+        ## NEW TRANSFORMER CODE ##
         # Pass through transformer model
         with torch.no_grad():
             output = self.transformer_model(x)
 
         # Compute logits
         logits = self.out(output)
-
-        if return_state:
-            return logits, hidden_states
 
         return logits
 

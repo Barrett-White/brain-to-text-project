@@ -37,7 +37,13 @@ conda run --prefix ./env pip install \
     tokenizers==0.21.2 \
     accelerate==1.8.1 \
     bitsandbytes==0.46.0 \
-    torch
+    torch \
+    datasets\
+    transformers[torch]\
+    evaluate\
+    nltk \
+    rouge_score \
+    sentencepiece
 
 echo
 echo "--- Setup Complete! ---"

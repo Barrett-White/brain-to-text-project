@@ -164,7 +164,7 @@ class CNNDecoder(nn.Module):
 
         # Now, MLP and then transformer architecture
 
-        # Transformer architecture
+        # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
         # Load the tokenizer, model, and data collator
         MODEL_NAME = "google/flan-t5-base"
 

@@ -33,6 +33,7 @@ class CNNDecoder(nn.Module):
         receptive_field=64,
         channel_amount=8,
         num_classes=3,
+        hidden_size=500,
     ):
         """
         neural_dim  (int)      - number of channels in a single timestep (e.g. 512)
@@ -149,6 +150,16 @@ class CNNDecoder(nn.Module):
         endsize = 320
         self.fc2 = nn.Linear(endsize, num_classes)
 
+        # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
+        self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
+        # Create position embeddings for the [CLS] token and the patch embeddings
+        # Add 1 to the sequence length for the [CLS] token
+        self.position_embeddings = nn.Parameter(
+            torch.randn(1, self.patch_embeddings.num_patches + 1, hidden_size)
+        )
+
+        # Now, MLP and then transformer architecture
+
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
 
@@ -157,15 +168,6 @@ class CNNDecoder(nn.Module):
         x        (tensor)  - batch of examples (trials) of shape: (batch_size, time_series_length, neural_dim)
         day_idx  (tensor)  - tensor which is a list of day indexs corresponding to the day of each example in the batch x.
         """
-        out = self.temporal(x)
-        out = self.spatial(out)
-        out = self.avgpool1(out)
-        out = self.dropout(out)
-        out = self.separable(out)
-        out = self.avgpool2(out)
-        out = self.dropout(out)
-        out = out.view(out.size(0), -1)
-        prediction = self.fc2(out)
         # Apply day-specific layer to (hopefully) project neural data from the different days to the same latent space
         day_weights = torch.stack([self.day_weights[i] for i in day_idx], dim=0)
         day_biases = torch.cat([self.day_biases[i] for i in day_idx], dim=0).unsqueeze(
@@ -206,8 +208,27 @@ class CNNDecoder(nn.Module):
                 self.n_layers, x.shape[0], self.n_units
             ).contiguous()
 
-        # Pass input through RNN
-        output, hidden_states = self.gru(x, states)
+        # Pass input through CNN
+        out = self.temporal(x)
+        out = self.spatial(out)
+        out = self.avgpool1(out)
+        out = self.dropout(out)
+        out = self.separable(out)
+        out = self.avgpool2(out)
+        out = self.dropout(out)
+        out = out.view(out.size(0), -1)
+        prediction = self.fc2(out)
+
+        x = self.patch_embeddings(x)
+        batch_size, _, _ = x.size()
+        # Expand the [CLS] token to the batch size
+        # (1, 1, hidden_size) -> (batch_size, 1, hidden_size)
+        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+        # Concatenate the [CLS] token to the beginning of the input sequence
+        # This results in a sequence length of (num_patches + 1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x = x + self.position_embeddings
+        x = self.dropout(x)
 
         # Compute logits
         logits = self.out(output)

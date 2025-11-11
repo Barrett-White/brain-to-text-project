@@ -83,26 +83,6 @@ class CNNDecoder(nn.Module):
         if self.patch_size > 0:
             self.input_size *= self.patch_size
 
-        self.gru = nn.GRU(
-            input_size=self.input_size,
-            hidden_size=self.n_units,
-            num_layers=self.n_layers,
-            dropout=self.rnn_dropout,
-            batch_first=True,  # The first dim of our input is the batch dim
-            bidirectional=False,
-        )
-
-        # Set recurrent units to have orthogonal param init and input layers to have xavier init
-        for name, param in self.gru.named_parameters():
-            if "weight_hh" in name:
-                nn.init.orthogonal_(param)
-            if "weight_ih" in name:
-                nn.init.xavier_uniform_(param)
-
-        # Prediciton head. Weight init to xavier
-        self.out = nn.Linear(self.n_units, self.n_classes)
-        nn.init.xavier_uniform_(self.out.weight)
-
         # following is from https://tintn.github.io/Implementing-Vision-Transformer-from-Scratch/
         self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_size))
         # Create position embeddings for the [CLS] token and the patch embeddings
@@ -115,6 +95,9 @@ class CNNDecoder(nn.Module):
 
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
+
+        # Prediciton head. Weight init to xavier
+        self.out = nn.Linear(self.n_units, self.n_classes)
 
     def forward(self, x, day_idx, states=None, return_state=False):
         """

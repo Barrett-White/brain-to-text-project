@@ -56,6 +56,70 @@ def load_h5py_file(file_path: str) -> dict:
             data["trial_num"].append(trial_num)
     return data
 
+def load_data_by_day(base_directory, percent_of_days_to_read=100, specific_days=None):
+    base_path = Path(base_directory)
+    all_day_folders = [d for d in base_path.iterdir() if d.is_dir()]
+
+    if not all_day_folders:
+        print(f"No subdirectories found in '{base_path.resolve()}'")
+        return None
+
+    if specific_days is not None:
+        if isinstance(specific_days, str):
+            specific_days = [specific_days]
+        folders_to_process = [d for d in all_day_folders if d.name in specific_days]
+        print(f"Targeting {len(folders_to_process)} specific day(s): {specific_days}")
+    else:
+        if percent_of_days_to_read < 100:
+            num_folders = int(len(all_day_folders) * (percent_of_days_to_read / 100.0))
+            print(
+                f"Found {len(all_day_folders)} total days. Randomly sampling {num_folders}"
+            )
+            folders_to_process = random.sample(all_day_folders, num_folders)
+        else:
+            print(f"Found {len(all_day_folders)} total days. Processing all...")
+            folders_to_process = all_day_folders
+
+    files_by_type = {"train": [], "val": [], "test": []}
+    for folder in folders_to_process:
+        for f in folder.glob("*.hdf5"):
+            if "train" in f.name:
+                files_by_type["train"].append(f)
+            elif "val" in f.name:
+                files_by_type["val"].append(f)
+            elif "test" in f.name:
+                files_by_type["test"].append(f)
+
+    final_datasets = {}
+    for data_type, file_list in files_by_type.items():
+        if not file_list:
+            print(f"No '{data_type}' files found in the selected days.")
+            final_datasets[data_type] = None
+            continue
+
+        print(f"Processing {len(file_list)} '{data_type}' files")
+
+        aggregated_data = {
+            "neural_features": [],
+            "n_time_steps": [],
+            "seq_class_ids": [],
+            "seq_len": [],
+            "transcriptions": [],
+            "sentence_label": [],
+            "session": [],
+            "block_num": [],
+            "trial_num": [],
+        }
+
+        for file_path in file_list:
+            data_from_file = load_h5py_file(file_path)
+            for key in aggregated_data.keys():
+                aggregated_data[key].extend(data_from_file[key])
+
+        final_datasets[data_type] = aggregated_data
+
+    print("\n Finished loading!")
+    return final_datasets
 
 def load_data_by_day_or_perc(
     base_directory: str,

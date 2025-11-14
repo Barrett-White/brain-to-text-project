@@ -15,6 +15,10 @@ huggingface-hub==0.33.1
 transformers==4.53.0 
 tokenizers==0.21.2 
 accelerate==1.8.1 
-bitsandbytes==0.46.0
-unidecode
-levenshtein
+bitsandbytes==0.46.0 
+torch
+datasets
+transformers[torch]
+evaluate
+sentencepiece
+braindecode

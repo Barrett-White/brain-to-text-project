@@ -154,10 +154,10 @@ threadpoolctl==3.6.0
 tinycss2==1.4.0
 tokenizers==0.21.2
 tomli==2.3.0
-torch==2.9.1+cu126
-torchaudio==2.9.1+cu126
+torch==2.9.1
+torchaudio==2.9.1
 torchinfo==1.8.0
-torchvision==0.24.1+cu126
+torchvision==0.24.1
 tornado==6.5.2
 tqdm==4.67.1
 traitlets==5.14.3

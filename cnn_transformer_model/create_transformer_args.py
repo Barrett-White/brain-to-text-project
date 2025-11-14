@@ -2,7 +2,7 @@ import os
 
 from omegaconf import OmegaConf
 
-args_path = "baseline/rnn_args.yaml"
+args_path = "baseline/rnn_args_sampled.yaml"
 args = OmegaConf.load(args_path)
 
 print("Loaded config from:", args_path)

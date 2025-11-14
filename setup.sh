@@ -9,9 +9,10 @@ echo "--- Creating Conda environment in ./env ---"
 # Create conda environment with Python 3.10
 conda create --prefix ./env python=3.10 -y
 
-echo "--- Upgrading pip in the new environment ---"
 # Use conda run to execute commands within the specified environment
-conda run --prefix ./env pip install --upgrade pip
+# but continue even with an errors during pip upgrade
+echo "--- Upgrading pip in the new environment ---"
+conda run --prefix ./env pip install --upgrade pip || true
 
 echo "--- Installing PyTorch ---"
 conda run --prefix ./env pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
@@ -38,7 +39,15 @@ conda run --prefix ./env pip install \
     accelerate==1.8.1 \
     bitsandbytes==0.46.0 \
     unidecode \
-    levenshtein
+    levenshtein \
+    torch \
+    datasets \
+    transformers[torch] \
+    evaluate \
+    nltk \
+    rouge_score \
+    sentencepiece \
+    braindecode
 
 echo
 echo "--- Setup Complete! ---"

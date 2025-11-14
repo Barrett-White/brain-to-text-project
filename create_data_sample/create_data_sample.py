@@ -1,7 +1,9 @@
+import os
 import random
 from pathlib import Path
 
 import h5py
+import pandas as pd
 
 
 def load_h5py_file(file_path: str) -> dict:
@@ -208,10 +210,6 @@ def load_data_by_day_or_perc(
 
 
 if __name__ == "__main__":
-    import os
-
-    import pandas as pd
-
     seed = 8
 
     base_directory = os.path.join(

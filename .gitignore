@@ -1,15 +1,36 @@
-# Ignore the main data folder
+# 1. Critical Folders
+# ---------------------------
+# Never commit trained models, data, or environments
+trained_models/
 data/
-
-# Ignore Python virtual environments
 env/
-*.env
-.env
 
-# Ignore IDE/editor-specific folders
-.vscode/
-.idea/
+# 2. Python & Jupyter
+# ---------------------------
+# Ignore all pycache folders
+__pycache__/
 
-# Ignore git clone folder
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# 3. Cloned Repos
+# ---------------------------
 nejm-brain-to-text/
 
+# 4. Results & Logs
+# ---------------------------
+*.log
+*.pkl
+*.csv
+
+# 5. IDE & OS Files
+# ---------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 6. Environment Files
+# ---------------------------
+*.env
+.env

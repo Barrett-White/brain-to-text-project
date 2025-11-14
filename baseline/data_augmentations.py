@@ -1,9 +1,12 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-def gauss_smooth(inputs, device, smooth_kernel_std=2, smooth_kernel_size=100,  padding='same'):
+
+def gauss_smooth(
+    inputs, device, smooth_kernel_std=2, smooth_kernel_size=100, padding="same"
+):
     """
     Applies a 1D Gaussian smoothing operation with PyTorch to smooth the data along the time axis.
     Args:

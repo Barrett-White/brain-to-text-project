@@ -106,36 +106,25 @@ class BrainToTextDecoder_Trainer:
             torch.manual_seed(self.args["seed"])
 
         # Model
-        hidden_size = 256
-        num_layers = 2
-        num_heads = 4
-        ff_dim = 1024
-
-        self.args["model"]["n_units"] = hidden_size
-        self.args["model"]["n_layers"] = num_layers
-        self.args["model"]["patch_size"] = 0
-        self.args["model"]["patch_stride"] = 0
-
-        self.args["model"]["rnn_dropout"] = 0.1
 
         self.model = TransformerDecoder(
             neural_dim=self.args["model"]["n_input_features"],
-            n_units=hidden_size,
+            n_units=self.args["model"]["n_units"],
             n_days=len(self.args["dataset"]["sessions"]),
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            n_layers=num_layers,
+            n_layers=self.args["model"]["n_layers"],
             patch_size=0,
             patch_stride=0,
-            n_heads=num_heads,
-            dim_feedforward=ff_dim,
+            n_heads=self.args["model"]["num_heads"],
+            dim_feedforward=self.args["model"["ff_dim"]],
         )
 
         if self.args["use_torch_compile"]:
             self.model = torch.compile(self.model)
 
-        self.logger.info("Initialized CNN transformer model")
+        self.logger.info("Initialized transformer model")
         self.logger.info(self.model)
 
         total_params = sum(p.numel() for p in self.model.parameters())

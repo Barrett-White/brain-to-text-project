@@ -135,7 +135,7 @@ class BrainToTextDecoder_Trainer:
         if self.args["use_torch_compile"]:
             self.model = torch.compile(self.model)
 
-        self.logger.info("Initialized RNN decoding model")
+        self.logger.info("Initialized CNN transformer model")
         self.logger.info(self.model)
 
         total_params = sum(p.numel() for p in self.model.parameters())

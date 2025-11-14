@@ -12,11 +12,11 @@ model:
     - 512
     input_trainable: true
     input_layer_dropout: 0.2
-gpu_number: '0'
+gpu_number: '1'
 mode: train
-use_amp: false
-output_dir: /kaggle/working/trained_models/baseline_rnn
-checkpoint_dir: /kaggle/working/trained_models/baseline_rnn\checkpoint
+use_amp: true
+output_dir: /content/drive/MyDrive/STOR566Project/models/transformer_model
+checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/transformer_model\checkpoint
 init_from_checkpoint: false
 init_checkpoint_path: None
 save_best_checkpoint: true
@@ -47,7 +47,7 @@ batches_per_val_step: 2000
 batches_per_save: 0
 log_individual_day_val_PER: true
 log_val_skip_logs: false
-save_val_logits: false
+save_val_logits: true
 save_val_data: false
 dataset:
   data_transforms:
@@ -71,7 +71,7 @@ dataset:
   must_include_days: null
   test_percentage: 0.1
   feature_subset: null
-  dataset_dir: /kaggle/input/brain-to-text-25-data/t15_copyTask_neuralData/hdf5_data_final
+  dataset_dir: /content/drive/MyDrive/STOR566Project/data/brain-to-text-25/t15_copyTask_neuralData/hdf5_data_final
   bad_trials_dict: null
   sessions:
   - t15.2023.08.11
@@ -165,4 +165,4 @@ dataset:
   - 1
   - 1
   - 1
-use_torch_compile: false
+use_torch_compile: true

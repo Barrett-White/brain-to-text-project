@@ -22,10 +22,10 @@ args["gpu_number"] = "1"
 # Transformer Parameters
 args["dataset"]["batch_size"] = 8
 args["dataset"]["num_dataloader_workers"] = 2
-args["save_val_logits"] = False
+args["save_val_logits"] = True
 args["save_val_data"] = False
-args["use_torch_compile"] = False
-args["use_amp"] = False
+args["use_torch_compile"] = True
+args["use_amp"] = True
 
 with open("cnn_transformer_model/transformer_args.yaml", "w") as f:
     OmegaConf.save(args, f)

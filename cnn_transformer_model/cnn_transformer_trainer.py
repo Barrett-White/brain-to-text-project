@@ -16,7 +16,10 @@ from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import (
+    T5ForConditionalGeneration,
+    T5Tokenizer,
+)
 
 from baseline.data_augmentations import gauss_smooth
 from baseline.dataset import BrainToTextDataset, train_test_split_indicies
@@ -122,7 +125,9 @@ class BrainToTextDecoder_Trainer:
         # Get pretrained Transformer
         # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
         # Load the tokenizer, model, and data collator
-        tokenizer = T5Tokenizer.from_pretrained(self.args["model"]["transformer_name"])
+        self.tokenizer = T5Tokenizer.from_pretrained(
+            self.args["model"]["transformer_name"]
+        )
         self.t5model = T5ForConditionalGeneration.from_pretrained(
             self.args["model"]["transformer_name"]
         )
@@ -138,7 +143,7 @@ class BrainToTextDecoder_Trainer:
             patch_size=0,
             patch_stride=0,
             eenet_model=eenet,
-            transformer_model=t5model,
+            transformer_model=self.t5model,
         )
 
         if self.args["use_torch_compile"]:
@@ -478,7 +483,20 @@ class BrainToTextDecoder_Trainer:
         return features, n_time_steps
 
     def train(self):
-        self.model.train()
+        # Freeze the layers for EENet and Transformer
+        for name, param in self.model.named_parameters():
+            if "eenet_model" in name or "transformer_model" in name:
+                param.requires_grad = False
+
+        # Unfreeze the final layer of the transformer and EENet
+        for name, param in self.model.named_parameters():
+            if (
+                "transformer_model.decoder.final_layer_norm" in name
+                or "transformer_model.lm_head" in name
+            ):
+                param.requires_grad = True
+            if "eenet_model.classify" in name:
+                param.requires_grad = True
 
         train_losses = []
         val_losses = []

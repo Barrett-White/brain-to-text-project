@@ -1,3 +1,4 @@
+python==3.10
 ipykernel 
 redis==5.2.1 
 jupyter==1.1.1 

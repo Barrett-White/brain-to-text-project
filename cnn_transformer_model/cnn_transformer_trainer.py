@@ -11,13 +11,16 @@ import time
 import numpy as np
 import torch
 import torchaudio.functional as taF
+from braindecode.models import EEGNetv4
+from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 
 from baseline.data_augmentations import gauss_smooth
 from baseline.dataset import BrainToTextDataset, train_test_split_indicies
-from cnn_transformer_model.transformer_model import TransformerDecoder
+from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 
 
 class BrainToTextDecoder_Trainer:
@@ -105,9 +108,26 @@ class BrainToTextDecoder_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        # Model
+        # Get EENet Model
+        eenet = EEGNetv4(
+            in_chans=self.args["model"]["n_input_features"],
+            n_classes=self.args["model"]["n_units"],
+        )
+        path_ = hf_hub_download(
+            repo_id=self.args["model"]["cnn_repo_id"],
+            filename=self.args["model"]["cnn_modelpath"],
+        )
+        eenet.load_state_dict(torch.load(path_, map_location=self.device))
 
-        self.model = TransformerDecoder(
+        # Get pretrained Transformer
+        # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
+        # Load the tokenizer, model, and data collator
+        tokenizer = T5Tokenizer.from_pretrained(self.args["model"]["transformer_name"])
+        self.t5model = T5ForConditionalGeneration.from_pretrained(
+            self.args["model"]["transformer_name"]
+        )
+
+        self.model = CNNTransformer(
             neural_dim=self.args["model"]["n_input_features"],
             n_units=self.args["model"]["n_units"],
             n_days=len(self.args["dataset"]["sessions"]),
@@ -117,14 +137,14 @@ class BrainToTextDecoder_Trainer:
             n_layers=self.args["model"]["n_layers"],
             patch_size=0,
             patch_stride=0,
-            n_heads=self.args["model"]["num_heads"],
-            dim_feedforward=self.args["model"]["ff_dim"],
+            eenet_model=eenet,
+            transformer_model=t5model,
         )
 
         if self.args["use_torch_compile"]:
             self.model = torch.compile(self.model)
 
-        self.logger.info("Initialized transformer model")
+        self.logger.info("Initialized CNN transformer model")
         self.logger.info(self.model)
 
         total_params = sum(p.numel() for p in self.model.parameters())

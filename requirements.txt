@@ -175,3 +175,4 @@ wfdb==4.3.0
 widgetsnbextension==4.0.15
 xxhash==3.6.0
 yarl==1.22.0
+braindecode

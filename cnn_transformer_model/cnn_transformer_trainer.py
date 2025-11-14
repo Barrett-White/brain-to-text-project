@@ -26,7 +26,7 @@ from baseline.dataset import BrainToTextDataset, train_test_split_indicies
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 
 
-class BrainToTextDecoder_Trainer:
+class CNN_Transformer_Trainer:
     """
     Initialize and train the brain-to-text phoneme decoder (baseline RNN)
     Adapted from original project, but made notebook/Kaggle friendly.

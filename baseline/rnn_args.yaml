@@ -84,16 +84,53 @@ dataset:
   dataset_dir: ../data/hdf5_data_final # directory containing the dataset
   bad_trials_dict: null # dictionary of bad trials to exclude from the dataset
   sessions: # list of sessions to include in the dataset
+  - t15.2023.08.11
+  - t15.2023.08.13
   - t15.2023.08.18
+  - t15.2023.08.20
+  - t15.2023.08.25
   - t15.2023.08.27
+  - t15.2023.09.01
+  - t15.2023.09.03
   - t15.2023.09.24
+  - t15.2023.09.29
+  - t15.2023.10.01
+  - t15.2023.10.06
   - t15.2023.10.08
+  - t15.2023.10.13
   - t15.2023.10.15
   - t15.2023.10.20
+  - t15.2023.10.22
+  - t15.2023.11.03
+  - t15.2023.11.04
+  - t15.2023.11.17
+  - t15.2023.11.19
+  - t15.2023.11.26
+  - t15.2023.12.03
   - t15.2023.12.08
   - t15.2023.12.10
+  - t15.2023.12.17
+  - t15.2023.12.29
+  - t15.2024.02.25
+  - t15.2024.03.03
+  - t15.2024.03.08
+  - t15.2024.03.15
+  - t15.2024.03.17
+  - t15.2024.04.25
+  - t15.2024.04.28
+  - t15.2024.05.10
+  - t15.2024.06.14
+  - t15.2024.07.19
+  - t15.2024.07.21
+  - t15.2024.07.28
+  - t15.2025.01.10
+  - t15.2025.01.12
   - t15.2025.03.14
+  - t15.2025.03.16
+  - t15.2025.03.30
+  - t15.2025.04.13
   dataset_probability_val: # probability of including a trial in the validation set (0 or 1)
+  - 0 # no val or test data from this day
   - 1
   - 1
   - 1
@@ -102,4 +139,39 @@ dataset:
   - 1
   - 1
   - 1
-  - 0
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 0 # no val or test data from this day
+  - 1
+  - 1
+  - 1
+  - 0 # no val or test data from this day
+  - 0 # no val or test data from this day
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1

@@ -14,10 +14,10 @@ import torchaudio.functional as taF
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from transformer_model import TransformerDecoder
 
 from baseline.data_augmentations import gauss_smooth
 from baseline.dataset import BrainToTextDataset, train_test_split_indicies
+from cnn_transformer_model.transformer_model import TransformerDecoder
 
 
 class BrainToTextDecoder_Trainer:

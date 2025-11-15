@@ -73,7 +73,7 @@ args["model"]["rnn_dropout"] = 0.1
 args["model"]["cnn_repo_id"] = "PierreGtch/EEGNetv4"
 args["model"]["cnn_modelpath"] = "EEGNetv4_Lee2019_MI/model-params.pkl"
 args["model"]["transformer_name"] = "google/flan-t5-base"
-args["dataset"]["temporal_bin"] = 20  # 20 ms
+args["dataset"]["temporal_bin"] = 50  # 20 ms???
 
 with open("cnn_transformer_model/cnn_transformer_args.yaml", "w") as f:
     OmegaConf.save(args, f)

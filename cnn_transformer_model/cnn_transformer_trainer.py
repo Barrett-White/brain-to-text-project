@@ -12,7 +12,6 @@ import numpy as np
 import torch
 import torchaudio.functional as taF
 from braindecode.models import EEGNet
-from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -117,11 +116,6 @@ class CNN_Transformer_Trainer:
             n_outputs=self.args["model"]["n_units"],
             n_times=self.args["dataset"]["temporal_bin"],
         )
-        path_ = hf_hub_download(
-            repo_id=self.args["model"]["cnn_repo_id"],
-            filename=self.args["model"]["cnn_modelpath"],
-        )
-        eenet.load_state_dict(torch.load(path_, map_location=self.device))
 
         # Get pretrained Transformer
         # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
@@ -484,19 +478,17 @@ class CNN_Transformer_Trainer:
         return features, n_time_steps
 
     def train(self):
-        # Freeze the layers for EENet and Transformer
+        # Freeze the layers for Transformer
         for name, param in self.model.named_parameters():
-            if "eenet_model" in name or "transformer_model" in name:
+            if "transformer_model" in name:
                 param.requires_grad = False
 
-        # Unfreeze the final layer of the transformer and EENet
+        # Unfreeze the final layers of the transformer
         for name, param in self.model.named_parameters():
             if (
                 "transformer_model.decoder.final_layer_norm" in name
                 or "transformer_model.lm_head" in name
             ):
-                param.requires_grad = True
-            if "eenet_model.classify" in name:
                 param.requires_grad = True
 
         train_losses = []

@@ -11,7 +11,7 @@ import time
 import numpy as np
 import torch
 import torchaudio.functional as taF
-from braindecode.models import EEGNetv4
+from braindecode.models import EEGNet
 from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
@@ -112,9 +112,10 @@ class CNN_Transformer_Trainer:
             torch.manual_seed(self.args["seed"])
 
         # Get EENet Model
-        eenet = EEGNetv4(
+        eenet = EEGNet(
             in_chans=self.args["model"]["n_input_features"],
             n_classes=self.args["model"]["n_units"],
+            n_times=self.args["dataset"]["days_per_batch"],
         )
         path_ = hf_hub_download(
             repo_id=self.args["model"]["cnn_repo_id"],

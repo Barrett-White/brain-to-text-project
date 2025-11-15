@@ -113,9 +113,9 @@ class CNN_Transformer_Trainer:
 
         # Get EENet Model
         eenet = EEGNet(
-            in_chans=self.args["model"]["n_input_features"],
-            n_classes=self.args["model"]["n_units"],
-            n_times=self.args["dataset"]["days_per_batch"],
+            n_chans=self.args["model"]["n_input_features"],
+            n_outputs=self.args["model"]["n_units"],
+            n_times=self.args["dataset"]["temporal_bin"],
         )
         path_ = hf_hub_download(
             repo_id=self.args["model"]["cnn_repo_id"],

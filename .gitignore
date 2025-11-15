@@ -4,6 +4,7 @@
 trained_models/
 data/
 env/
+t15_pretrained_rnn_baseline/
 
 # 2. Python & Jupyter
 # ---------------------------

@@ -1,7 +1,7 @@
 ipykernel 
 redis==5.2.1 
 jupyter==1.1.1 
-numpy==2.3.2  
+numpy==2.0.2  
 pandas==2.2.2 
 matplotlib==3.10.1 
 scipy==1.15.3

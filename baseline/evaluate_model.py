@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 import pandas as pd
+import redis
 from omegaconf import OmegaConf
 import time
 from tqdm import tqdm

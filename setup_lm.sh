@@ -37,6 +37,13 @@ conda activate ./language_model/env_lm
 # Upgrade pip
 pip install --upgrade pip
 
+# Install the C++ dependencies (gflags, glog) using Conda *before*
+# pip tries to build them. This forces CMake to use these
+# compatible versions from within our environment.
+echo "--- Installing C++ dependencies from conda-forge ---"
+conda install -c conda-forge gflags glog -y
+
+
 # Install additional packages
 echo "--- Installing Python packages ---"
 pip install \
@@ -60,6 +67,8 @@ pip install \
 echo "--- Compiling C++ components ---"
 cd language_model/runtime/server/x86
 
+# Unset this environment variable to stop CMake from finding
+# the Anaconda-provided libraries (this is our second safety net).
 echo "Unsetting CMAKE_PREFIX_PATH to prevent conflicts..."
 unset CMAKE_PREFIX_PATH
 
@@ -72,5 +81,5 @@ conda deactivate
 
 echo
 echo "Setup complete! The 'env_lm' environment is installed in ./language_model/"
-echo "You can now run the 'sbatch run_wer_eval.sbatch' script."
+echo "You can now run the 'sbatch baseline_wer_eval.sbatch' script."
 echo

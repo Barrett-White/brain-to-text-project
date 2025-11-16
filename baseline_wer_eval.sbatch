@@ -2,8 +2,6 @@
 
 # Request all resources
 # We explicitly request the a100 gpu partition
-# which has 1TB of RAM, easily covering our 60GB requirement.
-# We also request 128G of that RAM just to be safe.
 #SBATCH --job-name=b2t-wer-eval
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err

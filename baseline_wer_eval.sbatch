@@ -1,17 +1,14 @@
 #!/bin/bash
 
 # Request all resources
-# We explicitly request the 'l40-gpu' partition.
-# Based on sinfo, this partition has 500G+ of RAM.
-# We will request 128G, which is a standard block and
-# safely covers the 60G needed for our 3-gram model.
-#SBATCH --job-name=b2t-wer-eval
+#SBATCH -N 1
+#SBATCH --mem=128G
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err
 #SBATCH --partition=l40-gpu
+#SBATCH --qos=gpu_access
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 

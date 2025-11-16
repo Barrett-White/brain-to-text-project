@@ -18,26 +18,14 @@ if [ -d "language_model/runtime/server/x86/fc_base" ]; then
     exit 1
 fi
 
-# Load required modules (add them here instead of relying on pre-loaded modules)
-echo "--- Loading required modules ---"
-module purge
-module load cmake
-module load gcc
-# Do NOT load anaconda module to avoid conflicts
+# NOTE: The 'cmake' and 'gcc' checks have been removed.
+# You MUST load them as modules *before* running this script.
+# e.g.,:
+# module load cmake
+# module load gcc
 
-# Ensure conda is available (should be in base without loading anaconda module)
-if ! command -v conda &> /dev/null; then
-    echo "Error: conda not found. Please ensure conda is available in your PATH."
-    exit 1
-fi
-
+# Ensure conda is available
 source "$(conda info --base)/etc/profile.d/conda.sh"
-
-# Remove existing environment if it exists
-if [ -d "language_model/env_lm" ]; then
-    echo "--- Removing existing conda environment ---"
-    rm -rf language_model/env_lm
-fi
 
 # Create conda environment locally within the language_model folder
 echo "--- Creating Conda environment in ./language_model/env_lm ---"
@@ -72,43 +60,10 @@ pip install \
 echo "--- Compiling C++ components ---"
 cd language_model/runtime/server/x86
 
-echo "Cleaning up environment variables to prevent conflicts..."
-# Clean environment variables that cause conflicts
+echo "Unsetting CMAKE_PREFIX_PATH to prevent conflicts..."
 unset CMAKE_PREFIX_PATH
-unset CMAKE_INSTALL_PREFIX
-export PKG_CONFIG_PATH=""
 
-# Set specific environment for clean build
-export CC=$(which gcc)
-export CXX=$(which g++)
-
-echo "Current CMake version:"
-cmake --version
-
-echo "Attempting to compile C++ components..."
-# Run the setup with error handling
-if ! python setup.py install; then
-    echo "ERROR: C++ compilation failed!"
-    echo "Trying alternative approach with CMake directly..."
-    
-    # Try building manually
-    mkdir -p build
-    cd build
-    
-    # Try different CMake configurations
-    if cmake .. -DCMAKE_BUILD_TYPE=Release; then
-        echo "CMake configuration successful, building..."
-        if make -j$(nproc); then
-            echo "Manual build successful!"
-        else
-            echo "Manual build failed!"
-            exit 1
-        fi
-    else
-        echo "CMake configuration failed!"
-        exit 1
-    fi
-fi
+python setup.py install
 
 # cd back to the root directory
 cd ../../../..

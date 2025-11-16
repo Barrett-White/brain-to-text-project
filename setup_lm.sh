@@ -18,31 +18,27 @@ if [ -d "language_model/runtime/server/x86/fc_base" ]; then
     exit 1
 fi
 
-# make sure CMake is installed
-if ! command -v cmake &> /dev/null; then
-    echo "CMake is not installed. Please install CMake >= 3.14 before running this script with 'sudo apt-get install cmake'."
-    exit 1
-fi
-
-# make sure gcc is installed
-if ! command -v gcc &> /dev/null; then
-    echo "GCC is not installed. Please install GCC >= 10.1 before running this script with 'sudo apt-get install build-essential'."
-    exit 1
-fi
+# NOTE: The 'cmake' and 'gcc' checks have been removed.
+# You MUST load them as modules *before* running this script.
+# e.g.,:
+# module load cmake
+# module load gcc
 
 # Ensure conda is available
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
-# Create conda environment with Python 3.9
-conda create -n b2txt25_lm python=3.9 -y
+# Create conda environment locally within the language_model folder
+echo "--- Creating Conda environment in ./language_model/env_lm ---"
+conda create --prefix ./language_model/env_lm python=3.9 -y
 
 # Activate the new environment
-conda activate b2txt25_lm
+conda activate ./language_model/env_lm
 
 # Upgrade pip
 pip install --upgrade pip
 
 # Install additional packages
+echo "--- Installing Python packages ---"
 pip install \
     torch==1.13.1 \
     redis==5.0.6 \
@@ -61,12 +57,16 @@ pip install \
     bitsandbytes==0.41.1
 
 # cd to the language model directory and install the language model
+echo "--- Compiling C++ components ---"
 cd language_model/runtime/server/x86
 python setup.py install
 
 # cd back to the root directory
 cd ../../../..
 
+conda deactivate
+
 echo
-echo "Setup complete! Verify it worked by activating the conda environment with the command 'conda activate b2txt25_lm'."
+echo "Setup complete! The 'env_lm' environment is installed in ./language_model/"
+echo "You can now run the 'sbatch run_wer_eval.sbatch' script."
 echo

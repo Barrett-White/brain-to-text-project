@@ -2,9 +2,10 @@
 # ---------------------------
 # Never commit trained models, data, or environments
 trained_models/
-data/
+data/*
 env/
 t15_pretrained_rnn_baseline/
+
 
 # 2. Python & Jupyter
 # ---------------------------
@@ -35,3 +36,6 @@ Thumbs.db
 # ---------------------------
 *.env
 .env
+
+# Exceptions 
+!data/t15_copyTaskData_description.csv

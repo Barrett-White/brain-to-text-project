@@ -59,6 +59,10 @@ pip install \
 # cd to the language model directory and install the language model
 echo "--- Compiling C++ components ---"
 cd language_model/runtime/server/x86
+
+echo "Unsetting CMAKE_PREFIX_PATH to prevent conflicts..."
+unset CMAKE_PREFIX_PATH
+
 python setup.py install
 
 # cd back to the root directory

@@ -28,27 +28,29 @@ trap cleanup EXIT
 echo "Job started on $(hostname)"
 module load anaconda
 module load cuda/12.2  
-module load redis   
+
 source "$(conda info --base)/etc/profile.d/conda.sh"
 mkdir -p logs
 
 # Start Server 1: Redis
 echo "Starting Redis Server"
+# We must first activate the 'env_lm' which has redis-server installed
+conda activate ./language_model/env_lm
 redis-server &
 # Save the Process ID (PID) so we can kill it later
 REDIS_PID=$!
 sleep 5 # Give Redis a moment to start
+# We leave the environment active for the next step
 
 # Start Server 2: Language Model
 echo "Starting Language Model Server"
-# We must first activate the environment, then run python
-conda activate ./language_model/env_lm 
+# This script runs in the *same* environment
 python language_model/language-model-standalone.py \
     --model_path language_model/pretrained_language_models/3gram.model \
     > logs/lm_server.log 2>&1 &
 # Save its PID
 LM_PID=$!
-conda deactivate
+conda deactivate # Deactivate after both servers are running
 
 # Wait for LM to Load
 # This is the most critical step. The LM takes a long time

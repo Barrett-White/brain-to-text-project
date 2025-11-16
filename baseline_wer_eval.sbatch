@@ -9,7 +9,7 @@
 #SBATCH --qos=gpu_access
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --time=01:00:00
 
 
@@ -27,8 +27,8 @@ trap cleanup EXIT
 # Load modules
 echo "Job started on $(hostname)"
 module load anaconda
-module load cuda/12.2    # <-- FIXED: Using a real module version
-module load redis       # <-- FIXED: Loading the Redis module
+module load cuda/12.2  
+module load redis   
 source "$(conda info --base)/etc/profile.d/conda.sh"
 mkdir -p logs
 

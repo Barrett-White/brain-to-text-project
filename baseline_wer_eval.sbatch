@@ -1,14 +1,16 @@
 #!/bin/bash
 
 # Request all resources
-# We explicitly request the a100 gpu partition
+# We explicitly request the 'gpu' partition, which is general access.
+# Based on sinfo, this partition has 61.4G of RAM.
+# We will request 60G, which is just enough for our 3-gram model.
 #SBATCH --job-name=b2t-wer-eval
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err
-#SBATCH --partition=a100-gpu
+#SBATCH --partition=gpu
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=60G
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 

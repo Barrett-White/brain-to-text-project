@@ -1,14 +1,12 @@
 #!/bin/bash
 
 # Request all resources
-# We explicitly request the 'volta-gpu' partition.
-# Based on sinfo, this partition has 240G+ of RAM.
-# We will request 128G, which is a standard block and
-# safely covers the 60G needed for our 3-gram model.
+# We do NOT specify a partition. We let Slurm find any
+# node that has a GPU and 128G of RAM.
+# This is the most robust way to submit a job.
 #SBATCH --job-name=b2t-wer-eval
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err
-#SBATCH --partition=volta-gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G

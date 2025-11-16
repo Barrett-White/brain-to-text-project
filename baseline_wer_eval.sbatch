@@ -28,7 +28,7 @@ trap cleanup EXIT
 echo "Job started on $(hostname)"
 module load anaconda
 module load cuda/12.2  
-
+# <-- FIXED: Removed 'module load redis'
 source "$(conda info --base)/etc/profile.d/conda.sh"
 mkdir -p logs
 

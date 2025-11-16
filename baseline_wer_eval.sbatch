@@ -1,14 +1,16 @@
 #!/bin/bash
 
 # Request all resources
-# We request 70G RAM (60G for the 3 gram LM + 10G for everything else)
+# We explicitly request the a100 gpu partition
+# which has 1TB of RAM, easily covering our 60GB requirement.
+# We also request 128G of that RAM just to be safe.
 #SBATCH --job-name=b2t-wer-eval
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err
+#SBATCH --partition=a100-gpu
 #SBATCH --ntasks=1
-#SBATCH --qos=gpu_access
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=70G
+#SBATCH --mem=128G
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 

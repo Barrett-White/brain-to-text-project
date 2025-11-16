@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Request all resources
-# We request the 'volta-gpu' partition, which has over 240G of RAM.
+# We explicitly request the 'volta-gpu' partition.
+# Based on sinfo, this partition has 240G+ of RAM.
 # We will request 128G, which is a standard block and
 # safely covers the 60G needed for our 3-gram model.
 #SBATCH --job-name=b2t-wer-eval

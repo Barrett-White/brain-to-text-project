@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # Request all resources
-# We explicitly request the 'gpu' partition, which is general access.
-# Based on sinfo, this partition has 61.4G of RAM.
-# We will request 60G, which is just enough for our 3-gram model.
+# We request the 'volta-gpu' partition, which has over 240G of RAM.
+# We will request 128G, which is a standard block and
+# safely covers the 60G needed for our 3-gram model.
 #SBATCH --job-name=b2t-wer-eval
 #SBATCH --output=logs/wer_eval.txt
 #SBATCH --error=logs/wer_eval.err
-#SBATCH --partition=gpu
+#SBATCH --partition=volta-gpu
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=6
-#SBATCH --mem=60G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 

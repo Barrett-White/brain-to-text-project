@@ -38,11 +38,6 @@ Thumbs.db
 *.env
 .env
 
-# 7. Language Model Symlinks
-# ---------------------------
-language_model/runtime/server/x86/bin
-language_model/runtime/server/x86/decoder
-language_model/runtime/server/x86/utils
 
 # Exceptions 
 !data/t15_copyTaskData_description.csv

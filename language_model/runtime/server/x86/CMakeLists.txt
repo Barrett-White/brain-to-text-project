@@ -55,20 +55,20 @@ include_directories(${glog_INCLUDE_DIRS})
 # FetchContent_MakeAvailable(googletest)
 
 # third_party: boost
-FetchContent_Declare(boost
-  URL      https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
-  URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
-)
-FetchContent_MakeAvailable(boost)
-include_directories(${boost_SOURCE_DIR})
+# FetchContent_Declare(boost
+#   URL      https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
+#   URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
+# )
+# FetchContent_MakeAvailable(boost)
+# include_directories(${boost_SOURCE_DIR})
 
 # third_party: cnpy
-FetchContent_Declare(cnpy
-  URL      https://github.com/rogersce/cnpy/archive/refs/heads/master.zip
-  URL_HASH SHA256=dd58304295ce30e2299fafe8a72cb1acac508139df740c8976bcaab5c17591dc
-)
-FetchContent_MakeAvailable(cnpy)
-include_directories(${cnpy_SOURCE_DIR})
+# FetchContent_Declare(cnpy
+#   URL      https://github.com/rogersce/cnpy/archive/refs/heads/master.zip
+#   URL_HASH SHA256=dd58304295ce30e2299fafe8a72cb1acac508139df740c8976bcaab5c17591dc
+# )
+# FetchContent_MakeAvailable(cnpy)
+# include_directories(${cnpy_SOURCE_DIR})
 
 # Redis
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/hiredis)

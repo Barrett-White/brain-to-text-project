@@ -78,21 +78,21 @@ set(HIREDIS_LIB hiredis)
 set(TEST_HIREDIS_LIB hiredis)
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/redis-plus-plus)
 
-# third_party: libtorch - COMMENTED OUT, use system Torch
-# set(PYTORCH_VERSION "1.13.1")
-# if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-#     set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcpu.zip")
-#     set(URL_HASH "SHA256=d289185802baa1977701b72fc17c8aa6715481703352ce02d6f710cf007dc4f9")
-# else()
-#     message(FATAL_ERROR "Unsupported CMake System Name '${CMAKE_SYSTEM_NAME}' (expected 'Windows', 'Linux' or 'Darwin')")
-# endif()
-# FetchContent_Declare(libtorch
-#   URL      ${LIBTORCH_URL}
-#   URL_HASH ${URL_HASH}
-# )
-# set(gtest_force_shared_crt ON CACHE BOOL "Always use msvcrt.dll" FORCE)
-# FetchContent_MakeAvailable(libtorch)
-find_package(Torch REQUIRED)
+# third_party: libtorch - ENABLED (download it)
+set(PYTORCH_VERSION "1.13.1")
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcpu.zip")
+    set(URL_HASH "SHA256=d289185802baa1977701b72fc17c8aa6715481703352ce02d6f710cf007dc4f9")
+else()
+    message(FATAL_ERROR "Unsupported CMake System Name '${CMAKE_SYSTEM_NAME}' (expected 'Windows', 'Linux' or 'Darwin')")
+endif()
+FetchContent_Declare(libtorch
+  URL      ${LIBTORCH_URL}
+  URL_HASH ${URL_HASH}
+)
+set(gtest_force_shared_crt ON CACHE BOOL "Always use msvcrt.dll" FORCE)
+FetchContent_MakeAvailable(libtorch)
+find_package(Torch REQUIRED PATHS ${libtorch_SOURCE_DIR} NO_DEFAULT_PATH)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} -DC10_USE_GLOG")
 
 # utils

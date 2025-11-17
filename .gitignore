@@ -5,7 +5,8 @@ trained_models/
 data/*
 env/
 t15_pretrained_rnn_baseline/
-
+language_model/runtime/server/x86/kaldi/
+language_model/runtime/server/x86/kaldi
 
 # 2. Python & Jupyter
 # ---------------------------
@@ -39,4 +40,5 @@ Thumbs.db
 
 # Exceptions 
 !data/t15_copyTaskData_description.csv
+
 

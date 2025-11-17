@@ -29,21 +29,23 @@ if(NOT MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -pthread -fPIC")
 endif()
 
-# third_party: gflags
-FetchContent_Declare(gflags
-  URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
-  URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
-)
-FetchContent_MakeAvailable(gflags)
-include_directories(${gflags_BINARY_DIR}/include)
+# third_party: gflags - USE SYSTEM LIBRARIES FROM CONDA
+#FetchContent_Declare(gflags
+#  URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
+#  URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
+#)
+#FetchContent_MakeAvailable(gflags)
+find_package(gflags REQUIRED)
+include_directories(${gflags_INCLUDE_DIRS})
 
-# third_party: glog
-FetchContent_Declare(glog
-  URL      https://github.com/google/glog/archive/v0.4.0.zip
-  URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
-)
-FetchContent_MakeAvailable(glog)
-include_directories(${glog_SOURCE_DIR}/src ${glog_BINARY_DIR})
+# third_party: glog - USE SYSTEM LIBRARIES FROM CONDA
+#FetchContent_Declare(glog
+#  URL      https://github.com/google/glog/archive/v0.4.0.zip
+#  URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
+#)
+#FetchContent_MakeAvailable(glog)
+find_package(glog REQUIRED)
+include_directories(${glog_INCLUDE_DIRS})
 
 # third_party: gtest
 FetchContent_Declare(googletest
@@ -114,13 +116,13 @@ if(NOT MSVC)
     SOURCE_DIR        ${openfst_SOURCE_DIR}
     BINARY_DIR        ${openfst_BINARY_DIR}
     CONFIGURE_COMMAND ${openfst_SOURCE_DIR}/configure --prefix=${openfst_PREFIX_DIR}
-                        "CPPFLAGS=-I${gflags_BINARY_DIR}/include -I${glog_SOURCE_DIR}/src -I${glog_BINARY_DIR} -D_GLIBCXX_USE_CXX11_ABI=0"
-                        "LDFLAGS=-L${gflags_BINARY_DIR} -L${glog_BINARY_DIR}"
+                        "CPPFLAGS=-I${gflags_INCLUDE_DIRS} -I${glog_INCLUDE_DIRS} -D_GLIBCXX_USE_CXX11_ABI=0"
+                        "LDFLAGS=-L${gflags_LIBRARIES} -L${glog_LIBRARIES}"
                         "LIBS=-lgflags_nothreads -lglog -lpthread"
     COMMAND           ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR}
     BUILD_COMMAND     make -j 4
   )
-  add_dependencies(openfst gflags glog)
+  add_dependencies(openfst)
   add_dependencies(utils openfst)
   link_directories(${openfst_PREFIX_DIR}/lib)
   target_link_libraries(utils PUBLIC fst dl)
@@ -136,7 +138,6 @@ else()
   )
   FetchContent_MakeAvailable(openfst)
   execute_process(COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR})
-  add_dependencies(fst gflags glog)
   target_link_libraries(fst PUBLIC gflags_nothreads_static glog)
   target_link_libraries(utils PUBLIC fst)
 endif()

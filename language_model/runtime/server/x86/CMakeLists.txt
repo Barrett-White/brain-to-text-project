@@ -121,7 +121,7 @@ if(NOT MSVC)
     COMMAND           ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR}
     BUILD_COMMAND     make -j 4
   )
-  add_dependencies(openfst)
+  # add_dependencies(openfst)
   add_dependencies(utils openfst)
   link_directories(${openfst_PREFIX_DIR}/lib)
   target_link_libraries(utils PUBLIC fst dl)

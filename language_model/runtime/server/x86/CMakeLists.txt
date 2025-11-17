@@ -30,20 +30,21 @@ if(NOT MSVC)
 endif()
 
 # third_party: gflags
-# FetchContent_Declare(gflags
-#   URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
-#   URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
-# )
-# FetchContent_MakeAvailable(gflags)
-find_package(gflags REQUIRED)
+FetchContent_Declare(gflags
+  URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
+  URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
+)
+FetchContent_MakeAvailable(gflags)
+include_directories(${gflags_BINARY_DIR}/include)
+# find_package(gflags REQUIRED)
 include_directories(${gflags_INCLUDE_DIRS})
 
 # third_party: glog
-# FetchContent_Declare(glog
-#   URL      https://github.com/google/glog/archive/v0.4.0.zip
-#   URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
-# )
-# FetchContent_MakeAvailable(glog)
+FetchContent_Declare(glog
+  URL      https://github.com/google/glog/archive/v0.4.0.zip
+  URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
+)
+FetchContent_MakeAvailable(glog)
 find_package(glog REQUIRED)
 include_directories(${glog_INCLUDE_DIRS})
 

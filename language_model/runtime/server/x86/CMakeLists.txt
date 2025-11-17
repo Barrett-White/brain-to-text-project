@@ -37,7 +37,7 @@ FetchContent_Declare(gflags
 FetchContent_MakeAvailable(gflags)
 include_directories(${gflags_BINARY_DIR}/include)
 # find_package(gflags REQUIRED)
-include_directories(${gflags_INCLUDE_DIRS})
+# include_directories(${gflags_INCLUDE_DIRS})
 
 # third_party: glog
 FetchContent_Declare(glog
@@ -45,8 +45,9 @@ FetchContent_Declare(glog
   URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
 )
 FetchContent_MakeAvailable(glog)
-find_package(glog REQUIRED)
-include_directories(${glog_INCLUDE_DIRS})
+include_directories(${glog_SOURCE_DIR}/src ${glog_BINARY_DIR})
+# find_package(glog REQUIRED)
+# include_directories(${glog_INCLUDE_DIRS})
 
 # third_party: gtest - COMMENTED OUT
 # FetchContent_Declare(googletest

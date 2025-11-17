@@ -6,45 +6,43 @@ if [ ! -f "setup_lm.sh" ]; then
     exit 1
 fi
 
-# Load required modules first
-module load cmake
-module load gcc
-
-# Check if kaldi directory exists, if not, provide instructions
-if [ ! -d "language_model/runtime/server/x86/kaldi" ]; then
-    echo "WARNING: Kaldi directory not found at language_model/runtime/server/x86/kaldi"
-    echo "This might cause the build to fail."
-    echo "You may need to download and build Kaldi separately."
-    read -p "Continue without Kaldi? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
+# ensure that the language_model/runtime/server/x86/build directory does not exist
+if [ -d "language_model/runtime/server/x86/build" ]; then
+    echo "The language_model/runtime/server/x86/build directory already exists. Please remove it before running this script."
+    exit 1
 fi
 
-# Clean build directories
-rm -rf language_model/runtime/server/x86/build
-rm -rf language_model/runtime/server/x86/fc_base
+# ensure that the language_model/runtime/server/x86/fc_base directory does not exist
+if [ -d "language_model/runtime/server/x86/fc_base" ]; then
+    echo "The language_model/runtime/server/x86/fc_base directory already exists. Please remove it before running this script."
+    exit 1
+fi
+
+# make sure CMake is installed
+if ! command -v cmake &> /dev/null; then
+    echo "CMake is not installed. Please install CMake >= 3.14 before running this script with 'sudo apt-get install cmake'."
+    exit 1
+fi
+
+# make sure gcc is installed
+if ! command -v gcc &> /dev/null; then
+    echo "GCC is not installed. Please install GCC >= 10.1 before running this script with 'sudo apt-get install build-essential'."
+    exit 1
+fi
 
 # Ensure conda is available
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
-# Create conda environment locally within the language_model folder
-echo "--- Creating Conda environment in ./language_model/env_lm ---"
-conda create --prefix ./language_model/env_lm python=3.9 -y
+# Create conda environment with Python 3.9
+conda create -n b2txt25_lm python=3.9 -y
 
 # Activate the new environment
-conda activate ./language_model/env_lm
+conda activate b2txt25_lm
 
 # Upgrade pip
 pip install --upgrade pip
 
-# Install the C++ dependencies
-echo "--- Installing C++ dependencies from conda-forge ---"
-conda install -c conda-forge gflags glog -y
-
 # Install additional packages
-echo "--- Installing Python packages ---"
 pip install \
     torch==1.13.1 \
     redis==5.0.6 \
@@ -62,32 +60,13 @@ pip install \
     accelerate==0.33.0 \
     bitsandbytes==0.41.1
 
-# Build the language model components
-echo "--- Compiling C++ components ---"
+# cd to the language model directory and install the language model
 cd language_model/runtime/server/x86
+python setup.py install
 
-# Set up build environment
-unset CMAKE_PREFIX_PATH
-export CPLUS_INCLUDE_PATH="$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH"
-export LIBRARY_PATH="$CONDA_PREFIX/lib:$LIBRARY_PATH"
-export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-
-# Try to build with Kaldi workaround
-if [ ! -d "kaldi" ]; then
-    echo "Kaldi not found, attempting build without full Kaldi dependencies..."
-    # Create a dummy kaldi directory structure to satisfy CMake
-    mkdir -p kaldi/src
-    touch kaldi/CMakeLists.txt
-fi
-
-# Build with verbose output to see errors
-python setup.py install --verbose
-
+# cd back to the root directory
 cd ../../../..
 
-conda deactivate
-
 echo
-echo "Setup complete! The 'env_lm' environment is installed in ./language_model/"
-echo "You can now run the 'sbatch baseline_wer_eval.sbatch' script."
+echo "Setup complete! Verify it worked by activating the conda environment with the command 'conda activate b2txt25_lm'."
 echo

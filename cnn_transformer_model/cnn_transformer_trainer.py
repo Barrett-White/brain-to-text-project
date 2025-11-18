@@ -248,14 +248,11 @@ class CNN_Transformer_Trainer:
         if self.args["init_from_checkpoint"] and self.args["init_checkpoint_path"]:
             self.load_model_checkpoint(self.args["init_checkpoint_path"])
 
+        # freeze specified model parameters
         for name, param in self.model.named_parameters():
-            if not self.args["model"]["rnn_trainable"] and "gru" in name:
-                param.requires_grad = False
-            elif (
-                not self.args["model"]["input_network"]["input_trainable"]
-                and "day" in name
-            ):
-                param.requires_grad = False
+            if "transformer_model" in name:
+                if "lm_head" not in name:
+                    param.requires_grad = False
 
         self.model.to(self.device)
 

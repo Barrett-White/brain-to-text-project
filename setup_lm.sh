@@ -62,6 +62,12 @@ pip install \
 
 # cd to the language model directory and install the language model
 cd language_model/runtime/server/x86
+
+# CRITICAL FIX: Unload system anaconda and isolate CMake environment
+module unload anaconda 2>/dev/null || true
+export CMAKE_PREFIX_PATH="$CONDA_PREFIX"
+export PKG_CONFIG_PATH="$CONDA_PREFIX/lib/pkgconfig"
+
 python setup.py install
 
 # cd back to the root directory

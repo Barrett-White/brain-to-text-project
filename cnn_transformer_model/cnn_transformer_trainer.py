@@ -15,22 +15,17 @@ from braindecode.models import EEGNet
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from transformers import (
-    T5ForConditionalGeneration,
-    T5Tokenizer,
-)
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 
-from baseline.data_augmentations import gauss_smooth
-from baseline.dataset import BrainToTextDataset, train_test_split_indicies
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
+from cnn_transformer_model.dataset_transformer import (
+    BrainToTextDataset,
+    gauss_smooth,
+    train_test_split_indicies,
+)
 
 
 class CNN_Transformer_Trainer:
-    """
-    Initialize and train the brain-to-text phoneme decoder (baseline RNN)
-    Adapted from original project, but made notebook/Kaggle friendly.
-    """
-
     def __init__(self, args):
         self.args = args
         self.logger = None
@@ -89,7 +84,7 @@ class CNN_Transformer_Trainer:
             max_gpu_index = torch.cuda.device_count() - 1
             if gpu_num > max_gpu_index:
                 self.logger.warning(
-                    f"Requested GPU {gpu_num} not available. Using GPU 0 instead."
+                    f"Requested GPU {gpu_num} not available. Using 0 instead."
                 )
                 gpu_num = 0
 
@@ -110,16 +105,12 @@ class CNN_Transformer_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        # Get EENet Model
         eenet = EEGNet(
             n_chans=self.args["model"]["n_input_features"],
             n_outputs=self.args["model"]["n_units"],
             n_times=self.args["dataset"]["temporal_bin"],
         )
 
-        # Get pretrained Transformer
-        # Transformer architecture from https://www.datacamp.com/tutorial/flan-t5-tutorial
-        # Load the tokenizer, model, and data collator
         self.tokenizer = T5Tokenizer.from_pretrained(
             self.args["model"]["transformer_name"]
         )
@@ -135,10 +126,11 @@ class CNN_Transformer_Trainer:
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
             n_layers=self.args["model"]["n_layers"],
-            patch_size=0,
-            patch_stride=0,
+            patch_size=self.args["model"]["patch_size"],
+            patch_stride=self.args["model"]["patch_stride"],
             eenet_model=eenet,
             transformer_model=self.t5model,
+            temporal_bin=self.args["dataset"]["temporal_bin"],
         )
 
         if self.args["use_torch_compile"]:
@@ -159,7 +151,6 @@ class CNN_Transformer_Trainer:
             f"| {((day_params / total_params) * 100):.2f}% of total parameters"
         )
 
-        # Datasets and splits
         train_file_paths = [
             os.path.join(self.args["dataset"]["dataset_dir"], s, "data_train.hdf5")
             for s in self.args["dataset"]["sessions"]
@@ -255,7 +246,7 @@ class CNN_Transformer_Trainer:
                 f"Invalid lr_scheduler_type: {self.args['lr_scheduler_type']}"
             )
 
-        self.ctc_loss = torch.nn.CTCLoss(blank=0, reduction="none", zero_infinity=False)
+        self.ctc_loss = torch.nn.CTCLoss(blank=0, reduction="none", zero_infinity=True)
 
         if self.args["init_from_checkpoint"] and self.args["init_checkpoint_path"]:
             self.load_model_checkpoint(self.args["init_checkpoint_path"])
@@ -272,12 +263,6 @@ class CNN_Transformer_Trainer:
         self.model.to(self.device)
 
     def create_optimizer(self):
-        """
-        Create the optimizer with special param groups.
-        Biases and day-parameters should not be weight-decayed.
-        Day parameters also get their own LR.
-        """
-
         bias_params = []
         day_params = []
         other_params = []
@@ -288,21 +273,15 @@ class CNN_Transformer_Trainer:
 
             if "gru.bias" in name or "out.bias" in name:
                 bias_params.append(p)
-
             elif "day" in name:
                 day_params.append(p)
-
             else:
                 other_params.append(p)
 
         param_groups = []
         if bias_params:
             param_groups.append(
-                {
-                    "params": bias_params,
-                    "weight_decay": 0.0,
-                    "group_type": "bias",
-                }
+                {"params": bias_params, "weight_decay": 0.0, "group_type": "bias"}
             )
         if day_params:
             param_groups.append(
@@ -314,12 +293,7 @@ class CNN_Transformer_Trainer:
                 }
             )
         if other_params:
-            param_groups.append(
-                {
-                    "params": other_params,
-                    "group_type": "other",
-                }
-            )
+            param_groups.append({"params": other_params, "group_type": "other"})
 
         try:
             optim = torch.optim.AdamW(
@@ -478,18 +452,8 @@ class CNN_Transformer_Trainer:
         return features, n_time_steps
 
     def train(self):
-        # Freeze the layers for Transformer
-        for name, param in self.model.named_parameters():
-            if "transformer_model" in name:
-                param.requires_grad = False
-
-        # Unfreeze the final layers of the transformer
-        for name, param in self.model.named_parameters():
-            if (
-                "transformer_model.decoder.final_layer_norm" in name
-                or "transformer_model.lm_head" in name
-            ):
-                param.requires_grad = True
+        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        self.logger.info(f"Starting training with {trainable:,} trainable parameters")
 
         train_losses = []
         val_losses = []
@@ -523,24 +487,38 @@ class CNN_Transformer_Trainer:
                     features, n_time_steps, "train"
                 )
 
-                if self.args["model"]["patch_size"] > 0:
-                    adjusted_lens = (
-                        (n_time_steps - self.args["model"]["patch_size"])
-                        / self.args["model"]["patch_stride"]
-                        + 1
-                    ).to(torch.int32)
-                else:
-                    adjusted_lens = n_time_steps.to(torch.int32)
-
                 logits = self.model(features, day_indicies)
+                B, S, V = logits.shape
 
-                loss = self.ctc_loss(
-                    log_probs=torch.permute(logits.log_softmax(2), [1, 0, 2]),
+                max_target_len = phone_seq_lens.max().item()
+                if max_target_len > S:
+                    pad_T = max_target_len - S
+                    last_step = logits[:, -1:, :].expand(B, pad_T, V)
+                    logits = torch.cat([logits, last_step], dim=1)
+                    S = max_target_len
+
+                input_lengths = torch.full(
+                    (B,),
+                    S,
+                    dtype=torch.long,
+                    device=logits.device,
+                )
+
+                per_ex_loss = self.ctc_loss(
+                    log_probs=logits.log_softmax(2).permute(1, 0, 2),
                     targets=labels,
-                    input_lengths=adjusted_lens,
+                    input_lengths=input_lengths,
                     target_lengths=phone_seq_lens,
                 )
-                loss = loss.mean()
+
+                finite_mask = torch.isfinite(per_ex_loss)
+                if not finite_mask.any():
+                    self.logger.warning(
+                        f"All CTC losses non-finite in train batch {i}. Skipping this batch."
+                    )
+                    continue
+
+                loss = per_ex_loss[finite_mask].mean()
 
             loss.backward()
 
@@ -720,35 +698,49 @@ class CNN_Transformer_Trainer:
                         features, n_time_steps, "val"
                     )
 
-                    if self.args["model"]["patch_size"] > 0:
-                        adjusted_lens = (
-                            (n_time_steps - self.args["model"]["patch_size"])
-                            / self.args["model"]["patch_stride"]
-                            + 1
-                        ).to(torch.int32)
-                    else:
-                        adjusted_lens = n_time_steps.to(torch.int32)
-
                     logits = self.model(features, day_indicies)
+                    B, S, V = logits.shape
 
-                    loss = self.ctc_loss(
+                    max_target_len = phone_seq_lens.max().item()
+                    if max_target_len > S:
+                        pad_T = max_target_len - S
+                        last_step = logits[:, -1:, :].expand(B, pad_T, V)
+                        logits = torch.cat([logits, last_step], dim=1)
+                        S = max_target_len
+
+                    input_lengths = torch.full(
+                        (B,),
+                        S,
+                        dtype=torch.long,
+                        device=logits.device,
+                    )
+
+                    per_ex_loss = self.ctc_loss(
                         torch.permute(logits.log_softmax(2), [1, 0, 2]),
                         labels,
-                        adjusted_lens,
+                        input_lengths,
                         phone_seq_lens,
                     )
-                    loss = torch.mean(loss)
+
+                    finite_mask = torch.isfinite(per_ex_loss)
+                    if not finite_mask.any():
+                        self.logger.warning(
+                            f"All CTC losses non-finite in val batch {i}. Skipping this batch."
+                        )
+                        continue
+
+                    loss = per_ex_loss[finite_mask].mean()
 
                 metrics["losses"].append(loss.cpu().detach().numpy())
 
                 batch_edit_distance = 0
                 decoded_seqs = []
                 for b in range(logits.shape[0]):
-                    T = adjusted_lens[b].item()
+                    T = input_lengths[b].item()
                     decoded_seq = torch.argmax(logits[b, :T, :], dim=-1)
                     decoded_seq = torch.unique_consecutive(decoded_seq, dim=-1)
                     decoded_seq = decoded_seq.cpu().detach().numpy()
-                    decoded_seq = np.array([i for i in decoded_seq if i != 0])
+                    decoded_seq = np.array([idx for idx in decoded_seq if idx != 0])
 
                     true_seq = np.array(labels[b][0 : phone_seq_lens[b]].cpu().detach())
                     batch_edit_distance += taF.edit_distance(decoded_seq, true_seq)
@@ -762,7 +754,7 @@ class CNN_Transformer_Trainer:
 
             if return_logits:
                 metrics["logits"].append(logits.cpu().float().numpy())
-                metrics["n_time_steps"].append(adjusted_lens.cpu().numpy())
+                metrics["n_time_steps"].append(input_lengths.cpu().numpy())
 
             if return_data:
                 metrics["input_features"].append(batch["input_features"].cpu().numpy())
@@ -779,6 +771,29 @@ class CNN_Transformer_Trainer:
 
         metrics["day_PERs"] = day_per
         metrics["avg_PER"] = avg_PER
-        metrics["avg_loss"] = float(np.mean(metrics["losses"]))
+        metrics["avg_loss"] = (
+            float(np.mean(metrics["losses"]))
+            if len(metrics["losses"]) > 0
+            else float("inf")
+        )
 
         return metrics
+
+    def evaluate_full_validation(self):
+        val_metrics = self.validation(
+            loader=self.val_loader,
+            return_logits=False,
+            return_data=False,
+        )
+
+        self.logger.info("\n=== Full validation results from current model ===")
+        self.logger.info(f"Average CTC loss: {val_metrics['avg_loss']:.4f}")
+        self.logger.info(f"Average PER:      {val_metrics['avg_PER']:.4f}")
+
+        for d, stats in val_metrics["day_PERs"].items():
+            if stats["total_seq_length"] > 0:
+                day_per = stats["total_edit_distance"] / stats["total_seq_length"]
+                day_name = self.args["dataset"]["sessions"][d]
+                self.logger.info(f"  {day_name}: PER = {day_per:.4f}")
+
+        return val_metrics

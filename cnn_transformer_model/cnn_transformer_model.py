@@ -1,41 +1,28 @@
 import torch
-from torch import nn
 
 
-class CNNTransformer(nn.Module):
-    """
-    Transformer based decoder model for brain-to-text, using pretrained EENet and Transformer models.
-
-    It mirrors GRUDecoder:
-    - day-specific linear layers
-    - optional patching over time
-    - CTC-compatible logits: [B, T', n_classes]
-    - forward(x, day_idx, states=None, return_state=False)
-    """
-
+class CNNTransformer(torch.nn.Module):
     def __init__(
         self,
         neural_dim,
         n_units,
         n_days,
         n_classes,
+        rnn_dropout,
+        input_dropout,
         eenet_model,
         transformer_model,
-        rnn_dropout=0.0,
-        input_dropout=0.0,
-        n_layers=4,
+        temporal_bin,
     ):
         super().__init__()
-
-        # Assign pretrained models
-        self.eenet_model = eenet_model
-        self.transformer_model = transformer_model
-
         self.neural_dim = neural_dim
         self.n_units = n_units
-        self.n_classes = n_classes
-        self.n_layers = n_layers
         self.n_days = n_days
+        self.n_classes = n_classes
+        self.temporal_bin = temporal_bin
+
+        self.eegnet = eenet_model
+        self.transformer_model = transformer_model
 
         d_model = self.transformer_model.config.d_model
 
@@ -48,14 +35,6 @@ class CNNTransformer(nn.Module):
         self.out = torch.nn.Linear(d_model, n_classes)
 
     def forward(self, features, day_indices):
-        """
-        features: [B, T, neural_dim]
-        day_indices: [B] int indices of day
-
-        returns:
-          logits: [B, T', n_classes]
-          (optionally) None as "hidden state", to match GRUDecoder interface
-        """
         B, T, C = features.shape
         bin_len = self.temporal_bin
 

@@ -254,6 +254,11 @@ class CNN_Transformer_Trainer:
                 if "lm_head" not in name:
                     param.requires_grad = False
 
+        # Print out frozen info
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                print(f"Frozen: {name}")
+
         self.model.to(self.device)
 
     def create_optimizer(self):

@@ -10,6 +10,9 @@ model:
     input_trainable: true
     input_layer_dropout: 0.1
   transformer_name: google/flan-t5-small
+  cnn_information:
+    use_pretrained: false
+    pretrained_model_name: null
 gpu_number: '1'
 mode: train
 use_amp: true
@@ -58,6 +61,7 @@ dataset:
     smooth_kernel_size: 100
     smooth_data: true
     smooth_kernel_std: 2
+    mspca: true
   neural_dim: 512
   batch_size: 32
   n_classes: 41

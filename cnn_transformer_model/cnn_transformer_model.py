@@ -10,7 +10,7 @@ class CNNTransformer(torch.nn.Module):
         n_classes,
         rnn_dropout,
         input_dropout,
-        eenet_model,
+        cnn_model,
         transformer_model,
         temporal_bin,
     ):
@@ -21,7 +21,7 @@ class CNNTransformer(torch.nn.Module):
         self.n_classes = n_classes
         self.temporal_bin = temporal_bin
 
-        self.eegnet = eenet_model
+        self.cnn = cnn_model
         self.transformer_model = transformer_model
 
         d_model = self.transformer_model.config.d_model
@@ -51,7 +51,7 @@ class CNNTransformer(torch.nn.Module):
         x = x.view(B, S, bin_len, C).permute(0, 1, 3, 2)
         x = x.reshape(B * S, C, bin_len)
 
-        eeg_feat = self.eegnet(x)
+        eeg_feat = self.cnn(x)
         eeg_feat = eeg_feat.view(B, S, self.n_units)
 
         h = self.proj_to_t5(eeg_feat)

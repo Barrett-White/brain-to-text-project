@@ -105,11 +105,12 @@ class CNN_Transformer_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        eenet = EEGNet(
-            n_chans=self.args["model"]["n_input_features"],
-            n_outputs=self.args["model"]["n_units"],
-            n_times=self.args["dataset"]["temporal_bin"],
-        )
+        if not self.args["model"]["cnn_information"]["use_pretrained"]:
+            eenet = EEGNet(
+                n_chans=self.args["model"]["n_input_features"],
+                n_outputs=self.args["model"]["n_units"],
+                n_times=self.args["dataset"]["temporal_bin"],
+            )
 
         self.tokenizer = T5Tokenizer.from_pretrained(
             self.args["model"]["transformer_name"]
@@ -125,7 +126,7 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            eenet_model=eenet,
+            cnn_model=eenet,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
         )

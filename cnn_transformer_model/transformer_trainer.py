@@ -11,6 +11,7 @@ import time
 import numpy as np
 import torch
 import torchaudio.functional as taF
+from mspca import mspca
 from omegaconf import OmegaConf
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -454,6 +455,15 @@ class BrainToTextDecoder_Trainer:
                 smooth_kernel_std=self.transform_args["smooth_kernel_std"],
                 smooth_kernel_size=self.transform_args["smooth_kernel_size"],
             )
+
+        if self.transform_args["mspca"]:
+            # mspca function
+            mymodel = mspca.MultiscalePCA()
+            features = mymodel.fit_transform(
+                features, wavelet_func="db4", threshold=0.3
+            )
+            # Now get this into the correct tensor format
+            features = torch.tensor(features, device=self.device, dtype=torch.float32)
 
         return features, n_time_steps
 

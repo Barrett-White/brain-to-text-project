@@ -1,8 +1,6 @@
 import torch
 from torch import nn
 
-from cnn_transformer_model.transformer_model import PositionalEncoding
-
 
 class CNNTransformer(nn.Module):
     """
@@ -26,8 +24,6 @@ class CNNTransformer(nn.Module):
         rnn_dropout=0.0,
         input_dropout=0.0,
         n_layers=4,
-        patch_size=0,
-        patch_stride=0,
     ):
         super().__init__()
 
@@ -41,91 +37,58 @@ class CNNTransformer(nn.Module):
         self.n_layers = n_layers
         self.n_days = n_days
 
-        self.rnn_dropout = rnn_dropout
-        self.input_dropout = input_dropout
-        self.patch_size = patch_size
-        self.patch_stride = patch_stride
+        d_model = self.transformer_model.config.d_model
 
-        self.day_layer_activation = nn.Softsign()
+        self.proj_to_t5 = torch.nn.Linear(n_units, d_model)
+        self.day_embeddings = torch.nn.Embedding(n_days, d_model)
 
-        self.day_weights = nn.ParameterList(
-            [nn.Parameter(torch.eye(self.neural_dim)) for _ in range(self.n_days)]
-        )
-        self.day_biases = nn.ParameterList(
-            [nn.Parameter(torch.zeros(1, self.neural_dim)) for _ in range(self.n_days)]
-        )
+        self.input_dropout = torch.nn.Dropout(input_dropout)
+        self.rnn_dropout = torch.nn.Dropout(rnn_dropout)
 
-        self.day_layer_dropout = nn.Dropout(input_dropout)
+        self.out = torch.nn.Linear(d_model, n_classes)
 
-        # Input size before projection
-        self.input_size = self.neural_dim
-        if self.patch_size > 0:
-            self.input_size *= self.patch_size
-
-        # Positional encoding
-        self.pos_encoding = PositionalEncoding(self.n_units)
-
-        self.out = nn.Linear(self.n_units, self.n_classes)
-        nn.init.xavier_uniform_(self.out.weight)
-
-    def _apply_day_layers(self, x, day_idx):
+    def forward(self, features, day_indices):
         """
-        x: [B, T, D]
-        day_idx: [B] (int day index per trial)
-        """
-        day_weights = torch.stack([self.day_weights[i] for i in day_idx], dim=0)
-        day_biases = torch.cat([self.day_biases[i] for i in day_idx], dim=0).unsqueeze(
-            1
-        )
-
-        x = torch.einsum("btd,bdk->btk", x, day_weights) + day_biases
-        x = self.day_layer_activation(x)
-
-        if self.input_dropout > 0:
-            x = self.day_layer_dropout(x)
-
-        return x
-
-    def _apply_patching(self, x):
-        """
-        Optional patching over time, copied from GRUDecoder logic.
-
-        x: [B, T, D]
-        returns: [B, T_patch, D * patch_size] if patching enabled,
-                 else [B, T, D]
-        """
-        if self.patch_size <= 0:
-            return x
-
-        x = x.unsqueeze(1)
-        x = x.permute(0, 3, 1, 2)
-        x_unfold = x.unfold(3, self.patch_size, self.patch_stride)
-        x_unfold = x_unfold.squeeze(2)
-        x_unfold = x_unfold.permute(0, 2, 3, 1)
-        x = x_unfold.reshape(x.size(0), x_unfold.size(1), -1)
-        return x
-
-    def forward(self, x, day_idx):
-        """
-        x: [B, T, neural_dim]
-        day_idx: [B] int indices of day
+        features: [B, T, neural_dim]
+        day_indices: [B] int indices of day
 
         returns:
           logits: [B, T', n_classes]
           (optionally) None as "hidden state", to match GRUDecoder interface
         """
-        # Day specific normalization
-        x = self._apply_day_layers(x, day_idx)
+        B, T, C = features.shape
+        bin_len = self.temporal_bin
 
-        x = self._apply_patching(x)
+        S = (T + bin_len - 1) // bin_len
+        T_eff = S * bin_len
+        if T_eff > T:
+            pad = torch.zeros(
+                B, T_eff - T, C, device=features.device, dtype=features.dtype
+            )
+            x = torch.cat([features, pad], dim=1)
+        else:
+            x = features
 
-        # Go through EEGNet and project into transformer input space
-        x = self.eenet_model(x)
+        x = x.view(B, S, bin_len, C).permute(0, 1, 3, 2)
+        x = x.reshape(B * S, C, bin_len)
 
-        # positional encoding
-        x = self.pos_encoding(x)
-        x = self.transformer_model(x)
-        # Prediction head
-        logits = self.out(x)
+        eeg_feat = self.eegnet(x)
+        eeg_feat = eeg_feat.view(B, S, self.n_units)
 
+        h = self.proj_to_t5(eeg_feat)
+
+        day_emb = self.day_embeddings(day_indices).unsqueeze(1)
+        h = h + day_emb
+
+        h = self.input_dropout(h)
+
+        attn_mask = torch.ones(B, S, dtype=torch.long, device=h.device)
+        encoder_outputs = self.transformer_model.encoder(
+            inputs_embeds=h,
+            attention_mask=attn_mask,
+        )
+        hidden = encoder_outputs.last_hidden_state
+        hidden = self.rnn_dropout(hidden)
+
+        logits = self.out(hidden)
         return logits

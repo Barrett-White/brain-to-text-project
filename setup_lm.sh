@@ -33,12 +33,8 @@ fi
 # Ensure conda is available
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
-# Remove existing local environment if it exists
-conda deactivate 2>/dev/null || true
-rm -rf ./b2txt25_lm
-
 # Create conda environment with Python 3.9
-conda create --prefix ./b2txt25_lm python=3.9 -y
+conda create -n b2txt25_lm python=3.9 -y
 
 # Activate the new environment
 conda activate b2txt25_lm
@@ -73,5 +69,4 @@ cd ../../../..
 
 echo
 echo "Setup complete! Verify it worked by activating the conda environment with the command 'conda activate b2txt25_lm'."
-echo "You can now run the language model server with: python language_model/language-model-standalone.py --lm_path language_model/pretrained_language_models/3gram.model --redis_ip localhost --gpu_number 0"
 echo

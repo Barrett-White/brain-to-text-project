@@ -36,8 +36,6 @@ FetchContent_Declare(gflags
 )
 FetchContent_MakeAvailable(gflags)
 include_directories(${gflags_BINARY_DIR}/include)
-# find_package(gflags REQUIRED)
-# include_directories(${gflags_INCLUDE_DIRS})
 
 # third_party: glog
 FetchContent_Declare(glog
@@ -46,31 +44,29 @@ FetchContent_Declare(glog
 )
 FetchContent_MakeAvailable(glog)
 include_directories(${glog_SOURCE_DIR}/src ${glog_BINARY_DIR})
-# find_package(glog REQUIRED)
-# include_directories(${glog_INCLUDE_DIRS})
 
-# third_party: gtest - COMMENTED OUT
-# FetchContent_Declare(googletest
-#   URL      https://github.com/google/googletest/archive/release-1.10.0.zip
-#   URL_HASH SHA256=94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91
-# )
-# FetchContent_MakeAvailable(googletest)
+# third_party: gtest
+FetchContent_Declare(googletest
+  URL      https://github.com/google/googletest/archive/release-1.10.0.zip
+  URL_HASH SHA256=94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91
+)
+FetchContent_MakeAvailable(googletest)
 
-# third_party: boost - COMMENTED OUT
-# FetchContent_Declare(boost
-#   URL      https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
-#   URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
-# )
-# FetchContent_MakeAvailable(boost)
-# include_directories(${boost_SOURCE_DIR})
+# third_party: boost
+FetchContent_Declare(boost
+  URL      https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
+  URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
+)
+FetchContent_MakeAvailable(boost)
+include_directories(${boost_SOURCE_DIR})
 
-# third_party: cnpy - COMMENTED OUT
-# FetchContent_Declare(cnpy
-#   URL      https://github.com/rogersce/cnpy/archive/refs/heads/master.zip
-#   URL_HASH SHA256=dd58304295ce30e2299fafe8a72cb1acac508139df740c8976bcaab5c17591dc
-# )
-# FetchContent_MakeAvailable(cnpy)
-# include_directories(${cnpy_SOURCE_DIR})
+# third_party: cnpy
+FetchContent_Declare(cnpy
+  URL      https://github.com/rogersce/cnpy/archive/refs/heads/master.zip
+  URL_HASH SHA256=dd58304295ce30e2299fafe8a72cb1acac508139df740c8976bcaab5c17591dc
+)
+FetchContent_MakeAvailable(cnpy)
+include_directories(${cnpy_SOURCE_DIR})
 
 # Redis
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/hiredis)
@@ -80,7 +76,8 @@ set(HIREDIS_LIB hiredis)
 set(TEST_HIREDIS_LIB hiredis)
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/redis-plus-plus)
 
-# third_party: libtorch - ENABLED (download it)
+# third_party: libtorch 1.6.0, use FetchContent_Declare to download, and
+# use find_package to find since libtorch is not a standard cmake project
 set(PYTORCH_VERSION "1.13.1")
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcpu.zip")
@@ -117,31 +114,31 @@ if(NOT MSVC)
     SOURCE_DIR        ${openfst_SOURCE_DIR}
     BINARY_DIR        ${openfst_BINARY_DIR}
     CONFIGURE_COMMAND ${openfst_SOURCE_DIR}/configure --prefix=${openfst_PREFIX_DIR}
-                        "CPPFLAGS=-I${gflags_INCLUDE_DIRS} -I${glog_INCLUDE_DIRS} -D_GLIBCXX_USE_CXX11_ABI=0"
-                        "LDFLAGS=-L${gflags_LIBRARIES} -L${glog_LIBRARIES}"
+                        "CPPFLAGS=-I${gflags_BINARY_DIR}/include -I${glog_SOURCE_DIR}/src -I${glog_BINARY_DIR} -D_GLIBCXX_USE_CXX11_ABI=0"
+                        "LDFLAGS=-L${gflags_BINARY_DIR} -L${glog_BINARY_DIR}"
                         "LIBS=-lgflags_nothreads -lglog -lpthread"
     COMMAND           ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR}
     BUILD_COMMAND     make -j 4
   )
-  # add_dependencies(openfst)
+  add_dependencies(openfst gflags glog)
   add_dependencies(utils openfst)
   link_directories(${openfst_PREFIX_DIR}/lib)
   target_link_libraries(utils PUBLIC fst dl)
 else()
-  # execute_process(COMMAND bootstrap.bat WORKING_DIRECTORY ${boost_SOURCE_DIR})
-  # execute_process(COMMAND b2.exe WORKING_DIRECTORY ${boost_SOURCE_DIR})
-  # link_directories(${boost_SOURCE_DIR}/stage/lib)
+  execute_process(COMMAND bootstrap.bat WORKING_DIRECTORY ${boost_SOURCE_DIR})
+  execute_process(COMMAND b2.exe WORKING_DIRECTORY ${boost_SOURCE_DIR})
+  link_directories(${boost_SOURCE_DIR}/stage/lib)
   file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
   file(COPY ${TORCH_DLLS} DESTINATION ${CMAKE_BINARY_DIR})
-  # FetchContent_Declare(openfst
-  #   URL      https://github.com.cnpmjs.org/kkm000/openfst/archive/refs/tags/win/1.6.5.1.tar.gz
-  #   URL_HASH SHA256=02c49b559c3976a536876063369efc0e41ab374be1035918036474343877046e
-  # )
-  # FetchContent_MakeAvailable(openfst)
-  # execute_process(COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR})
-  # add_dependencies(fst gflags glog)
-  # target_link_libraries(fst PUBLIC gflags_nothreads_static glog)
-  # target_link_libraries(utils PUBLIC fst)
+  FetchContent_Declare(openfst
+    URL      https://github.com.cnpmjs.org/kkm000/openfst/archive/refs/tags/win/1.6.5.1.tar.gz
+    URL_HASH SHA256=02c49b559c3976a536876063369efc0e41ab374be1035918036474343877046e
+  )
+  FetchContent_MakeAvailable(openfst)
+  execute_process(COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR})
+  add_dependencies(fst gflags glog)
+  target_link_libraries(fst PUBLIC gflags_nothreads_static glog)
+  target_link_libraries(utils PUBLIC fst)
 endif()
 include_directories(${openfst_SOURCE_DIR}/src/include)
 
@@ -160,7 +157,7 @@ find_package(ZLIB REQUIRED)
 
 # binary
 add_executable(brain_speech_decoder_main bin/brain_speech_decoder_main.cc)
-target_link_libraries(brain_speech_decoder_main PUBLIC decoder ${ZLIB_LIBRARIES})
+target_link_libraries(brain_speech_decoder_main PUBLIC decoder cnpy-static ${ZLIB_LIBRARIES})
 #add_executable(redis_server_main bin/redis_server_main.cc)
 #target_link_libraries(redis_server_main PUBLIC redis++_static hiredis_static decoder)
 

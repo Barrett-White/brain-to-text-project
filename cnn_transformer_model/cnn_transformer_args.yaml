@@ -64,7 +64,7 @@ dataset:
   max_seq_elements: 500
   days_per_batch: 4
   seed: 1
-  num_dataloader_workers: 4
+  num_dataloader_workers: 2
   loader_shuffle: false
   must_include_days: null
   temporal_bin: 50

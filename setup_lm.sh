@@ -34,10 +34,10 @@ fi
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
 # Create conda environment with Python 3.9
-conda create -n b2txt25_lm python=3.9 -y
+conda create --prefix ./b2txt25_lm python=3.9 -y
 
 # Activate the new environment
-conda activate b2txt25_lm
+conda activate ./b2txt25_lm
 
 # Upgrade pip
 pip install --upgrade pip

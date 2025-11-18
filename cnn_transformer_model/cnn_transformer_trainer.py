@@ -257,7 +257,7 @@ class CNN_Transformer_Trainer:
         # Print out frozen info
         for name, param in self.model.named_parameters():
             if not param.requires_grad:
-                print(f"Frozen: {name}")
+                self.logger.info(f"Frozen: {name}")
 
         self.model.to(self.device)
 

@@ -9,7 +9,7 @@ model:
   input_network:
     input_trainable: true
     input_layer_dropout: 0.1
-  transformer_name: google/flan-t5-base
+  transformer_name: google/flan-t5-small
 gpu_number: '1'
 mode: train
 use_amp: true

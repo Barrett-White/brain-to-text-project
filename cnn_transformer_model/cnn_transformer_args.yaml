@@ -1,5 +1,5 @@
 model:
-  n_input_features: None
+  n_input_features: 512
   n_units: 256
   rnn_dropout: 0.1
   rnn_trainable: true

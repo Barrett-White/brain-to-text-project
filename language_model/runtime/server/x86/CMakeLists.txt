@@ -14,7 +14,7 @@ option(GRPC "whether to build gRPC" OFF)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/kaldi
+  ${CMAKE_SOURCE_DIR}/../../core 
 )
 set(CMAKE_VERBOSE_MAKEFILE on)
 
@@ -162,7 +162,7 @@ endif()
 include_directories(${openfst_SOURCE_DIR}/src/include)
 
 # kaldi
-add_subdirectory(kaldi)
+add_subdirectory(../../core/kaldi kaldi_build)
 
 # decoder
 add_library(decoder STATIC

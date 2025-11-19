@@ -138,7 +138,7 @@ if(NOT MSVC)
                         "CPPFLAGS=-I${gflags_BINARY_DIR}/include -I${glog_SOURCE_DIR}/src -I${glog_BINARY_DIR} -D_GLIBCXX_USE_CXX11_ABI=0"
                         "LDFLAGS=-L${gflags_BINARY_DIR} -L${glog_BINARY_DIR}"
                         "LIBS=-lgflags_nothreads -lglog -lpthread"
-    COMMAND               ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/patch/openfst ${openfst_SOURCE_DIR}
+    COMMAND               ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/../../core/patch/openfst ${openfst_SOURCE_DIR}}
     BUILD_COMMAND         make -j 4
   )
   add_dependencies(openfst gflags glog)

@@ -147,7 +147,7 @@ def main():
         finetune_path = os.path.join(script_dir, "trained_models", "finetuned_rnn")
         args["output_dir"] = finetune_path
         args["checkpoint_dir"] = os.path.join(finetune_path, "checkpoint")
-        args["num_training_batches"] = 15000 
+        args["num_training_batches"] = 12000
 
     args["init_from_checkpoint"] = False 
     args["save_best_checkpoint"] = True

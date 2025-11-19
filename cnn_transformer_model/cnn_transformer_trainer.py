@@ -12,7 +12,9 @@ import numpy as np
 import torch
 import torchaudio.functional as taF
 from braindecode.models import EEGNet
+from mspca import mspca
 from omegaconf import OmegaConf
+from ssqueezepy import Wavelet, cwt, stft
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from transformers import T5ForConditionalGeneration, T5Tokenizer
@@ -448,6 +450,23 @@ class CNN_Transformer_Trainer:
                 smooth_kernel_std=self.transform_args["smooth_kernel_std"],
                 smooth_kernel_size=self.transform_args["smooth_kernel_size"],
             )
+
+        if self.transform_args["turn_into_image"]:
+            # mspca function
+            # turn features into numpy array
+            features = features.cpu().numpy()
+            mymodel = mspca.MultiscalePCA()
+            features = mymodel.fit_transform(
+                features, wavelet_func="db4", threshold=0.3
+            )
+
+            # Use ssqueezepy to do cwt
+            wavelet = Wavelet()
+            Wx, scales = cwt(features, wavelet)
+            Sx = stft(features)[::-1]
+
+            # reshape to (batch, time, features)
+            features = features.permute(0, 2, 1)
 
         return features, n_time_steps
 

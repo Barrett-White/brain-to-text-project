@@ -28,67 +28,56 @@ if(NOT MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -pthread -fPIC")
 endif()
 
-# -------------------------------------------------------
-# 1. GFLAGS (EXCLUDE_FROM_ALL Fix)
-# -------------------------------------------------------
+# =======================================================
+# 1. GFLAGS
+# =======================================================
 FetchContent_Declare(gflags
   URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
   URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
 )
 
-# Force Static Build Settings
+# FIX 1: Force Static Build
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GFLAGS_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GFLAGS_BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
 
-# Manually populate and add subdirectory with EXCLUDE_FROM_ALL
-# This prevents CMake from generating the broken "install(EXPORT)" rules
-FetchContent_GetProperties(gflags)
-if(NOT gflags_POPULATED)
-  FetchContent_Populate(gflags)
-  add_subdirectory(${gflags_SOURCE_DIR} ${gflags_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
+# FIX 2: REMOVED the "INSTALL_... OFF" lines. 
+# We let gflags generate its export rules so glog stays happy.
 
+FetchContent_MakeAvailable(gflags)
 include_directories(${gflags_BINARY_DIR}/include)
 
 
-# -------------------------------------------------------
-# 2. GLOG (EXCLUDE_FROM_ALL Fix)
-# -------------------------------------------------------
+# =======================================================
+# 2. GLOG
+# =======================================================
 FetchContent_Declare(glog
   URL      https://github.com/google/glog/archive/v0.4.0.zip
   URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
 )
 
-# Tell glog not to worry about gflags (we link manually)
+# FIX 3: Block Anaconda / System Search
 set(WITH_GFLAGS OFF CACHE BOOL "Manual gflags link" FORCE)
 
-# Manually populate and add subdirectory with EXCLUDE_FROM_ALL
-FetchContent_GetProperties(glog)
-if(NOT glog_POPULATED)
-  FetchContent_Populate(glog)
-  add_subdirectory(${glog_SOURCE_DIR} ${glog_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
-
+FetchContent_MakeAvailable(glog)
 include_directories(${glog_SOURCE_DIR}/src ${glog_BINARY_DIR})
 
-# MANUAL WIRING: Link gflags manually since we disabled auto-detection
+# FIX 4: Manual Wiring
+# Since we blocked system search, we must link manually.
 target_link_libraries(glog PUBLIC gflags_nothreads_static)
 target_compile_definitions(glog PUBLIC HAVE_LIB_GFLAGS=1)
 
 
-# -------------------------------------------------------
-# 3. Other Dependencies (Standard MakeAvailable)
-# -------------------------------------------------------
-# third_party: gtest
+# =======================================================
+# 3. Other Dependencies (Unchanged)
+# =======================================================
 FetchContent_Declare(googletest
   URL      https://github.com/google/googletest/archive/release-1.10.0.zip
   URL_HASH SHA256=94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91
 )
 FetchContent_MakeAvailable(googletest)
 
-# third_party: boost
 FetchContent_Declare(boost
   URL      https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
   URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
@@ -96,7 +85,6 @@ FetchContent_Declare(boost
 FetchContent_MakeAvailable(boost)
 include_directories(${boost_SOURCE_DIR})
 
-# third_party: cnpy
 FetchContent_Declare(cnpy
   URL      https://github.com/rogersce/cnpy/archive/refs/heads/master.zip
   URL_HASH SHA256=dd58304295ce30e2299fafe8a72cb1acac508139df740c8976bcaab5c17591dc
@@ -104,7 +92,6 @@ FetchContent_Declare(cnpy
 FetchContent_MakeAvailable(cnpy)
 include_directories(${cnpy_SOURCE_DIR})
 
-# Redis
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/hiredis)
 set(REDIS_PLUS_PLUS_CXX_STANDARD 14)
 set(HIREDIS_HEADER ${CMAKE_SOURCE_DIR}/third_party)
@@ -112,7 +99,6 @@ set(HIREDIS_LIB hiredis)
 set(TEST_HIREDIS_LIB hiredis)
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/redis-plus-plus)
 
-# third_party: libtorch
 set(PYTORCH_VERSION "1.13.1")
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(LIBTORCH_URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcpu.zip")
@@ -129,13 +115,11 @@ FetchContent_MakeAvailable(libtorch)
 find_package(Torch REQUIRED PATHS ${libtorch_SOURCE_DIR} NO_DEFAULT_PATH)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} -DC10_USE_GLOG")
 
-# utils
 add_library(utils STATIC
   utils/string.cc
   utils/utils.cc
 )
 
-# OpenFST
 if(NOT MSVC)
   set(openfst_SOURCE_DIR ${fc_base}/openfst-src)
   set(openfst_BINARY_DIR ${fc_base}/openfst-build)
@@ -160,10 +144,8 @@ else()
 endif()
 include_directories(${openfst_SOURCE_DIR}/src/include)
 
-# kaldi
 add_subdirectory(kaldi)
 
-# decoder
 add_library(decoder STATIC
   decoder/ctc_prefix_beam_search.cc
   decoder/ctc_wfst_beam_search.cc
@@ -173,7 +155,6 @@ target_link_libraries(decoder PUBLIC ${TORCH_LIBRARIES} kaldi-decoder utils kald
 
 find_package(ZLIB REQUIRED)
 
-# binary
 add_executable(brain_speech_decoder_main bin/brain_speech_decoder_main.cc)
 target_link_libraries(brain_speech_decoder_main PUBLIC decoder cnpy-static ${ZLIB_LIBRARIES})
 

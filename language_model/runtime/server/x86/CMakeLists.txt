@@ -126,20 +126,31 @@ add_library(utils STATIC
 
 # OpenFST
 if(NOT MSVC)
-  set(openfst_SOURCE_DIR ${fc_base}/openfst-src)
+  # 1. DOWNLOAD MANUALLY (Fixes the conflict with Kaldi)
+  FetchContent_Declare(openfst
+    URL      https://github.com/mjansche/openfst/archive/1.6.5.zip
+    URL_HASH SHA256=b720357a464f42e181d7e33f60867b54044007f50baedc8f4458a3926f4a5a78
+  )
+  FetchContent_GetProperties(openfst)
+  if(NOT openfst_POPULATED)
+    FetchContent_Populate(openfst)
+  endif()
+
+  # 2. BUILD EXISTING SOURCE
   set(openfst_BINARY_DIR ${fc_base}/openfst-build)
   set(openfst_PREFIX_DIR ${fc_base}/openfst-subbuild/openfst-populate-prefix)
+
   ExternalProject_Add(openfst
-    URL                   https://github.com/mjansche/openfst/archive/1.6.5.zip
-    URL_HASH              SHA256=b720357a464f42e181d7e33f60867b54044007f50baedc8f4458a3926f4a5a78
-    SOURCE_DIR            ${openfst_SOURCE_DIR}
-    BINARY_DIR            ${openfst_BINARY_DIR}
+    SOURCE_DIR        ${openfst_SOURCE_DIR}
+    BINARY_DIR        ${openfst_BINARY_DIR}
+    DOWNLOAD_COMMAND  "" # Do not download, we did it above
     CONFIGURE_COMMAND ${openfst_SOURCE_DIR}/configure --prefix=${openfst_PREFIX_DIR}
                         "CPPFLAGS=-I${gflags_BINARY_DIR}/include -I${glog_SOURCE_DIR}/src -I${glog_BINARY_DIR} -D_GLIBCXX_USE_CXX11_ABI=0"
                         "LDFLAGS=-L${gflags_BINARY_DIR} -L${glog_BINARY_DIR}"
                         "LIBS=-lgflags_nothreads -lglog -lpthread"
-    COMMAND               ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/../../core/patch/openfst ${openfst_SOURCE_DIR}}
-    BUILD_COMMAND         make -j 4
+    # Keep your symlink fix here:
+    COMMAND           ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/../../core/patch/openfst ${openfst_SOURCE_DIR}
+    BUILD_COMMAND     make -j 4
   )
   add_dependencies(openfst gflags glog)
   add_dependencies(utils openfst)
@@ -147,6 +158,7 @@ if(NOT MSVC)
   target_link_libraries(utils PUBLIC fst dl)
 else()
 endif()
+
 include_directories(${openfst_SOURCE_DIR}/src/include)
 
 # kaldi

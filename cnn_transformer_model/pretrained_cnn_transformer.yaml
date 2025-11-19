@@ -1,0 +1,99 @@
+model:
+  n_input_features: 512
+  n_units: 256
+  rnn_dropout: 0.1
+  rnn_trainable: true
+  n_layers: 2
+  patch_size: 0
+  patch_stride: 0
+  input_network:
+    input_trainable: true
+    input_layer_dropout: 0.1
+  transformer_name: google/flan-t5-small
+  cnn_information:
+    use_pretrained: true
+    pretrained_model_name: "shufflenet_v2_x1_0"
+gpu_number: '1'
+mode: train
+use_amp: true
+output_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model
+checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model\checkpoint
+init_from_checkpoint: false
+init_checkpoint_path: None
+save_best_checkpoint: true
+save_all_val_steps: false
+save_final_model: true
+save_val_metrics: true
+early_stopping: false
+early_stopping_val_steps: 20
+num_training_batches: 120000
+lr_scheduler_type: cosine
+lr_max: 0.005
+lr_min: 0.0001
+lr_decay_steps: 120000
+lr_warmup_steps: 1000
+lr_max_day: 0.005
+lr_min_day: 0.0001
+lr_decay_steps_day: 120000
+lr_warmup_steps_day: 1000
+beta0: 0.9
+beta1: 0.999
+epsilon: 0.1
+weight_decay: 0.001
+weight_decay_day: 0
+seed: 10
+grad_norm_clip_value: 10
+batches_per_train_log: 200
+batches_per_val_step: 2000
+batches_per_save: 0
+log_individual_day_val_PER: true
+log_val_skip_logs: false
+save_val_logits: true
+save_val_data: false
+dataset:
+  data_transforms:
+    white_noise_std: 0.0
+    constant_offset_std: 0.0
+    random_walk_std: 0.0
+    random_walk_axis: 1
+    static_gain_std: 0.0
+    random_cut: 0
+    smooth_kernel_size: 100
+    smooth_data: true
+    smooth_kernel_std: 2
+    mspca: true
+  neural_dim: 512
+  batch_size: 32
+  n_classes: 41
+  max_seq_elements: 500
+  days_per_batch: 4
+  seed: 1
+  num_dataloader_workers: 2
+  loader_shuffle: false
+  must_include_days: null
+  temporal_bin: 50
+  test_percentage: 0.1
+  feature_subset: null
+  dataset_dir: /content/drive/MyDrive/STOR566Project/data/brain-to-text-25/t15_copyTask_neuralData/hdf5_data_final
+  bad_trials_dict: null
+  sessions:
+  - t15.2023.08.18
+  - t15.2023.08.27
+  - t15.2023.09.24
+  - t15.2023.10.08
+  - t15.2023.10.15
+  - t15.2023.10.20
+  - t15.2023.12.08
+  - t15.2023.12.10
+  - t15.2025.03.14
+  dataset_probability_val:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 0
+use_torch_compile: true

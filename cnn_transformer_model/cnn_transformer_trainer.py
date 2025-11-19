@@ -14,7 +14,7 @@ import torchaudio.functional as taF
 from braindecode.models import EEGNet
 from mspca import mspca
 from omegaconf import OmegaConf
-from ssqueezepy import Wavelet, cwt, stft
+from ssqueezepy import cwt
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from transformers import T5ForConditionalGeneration, T5Tokenizer
@@ -461,12 +461,10 @@ class CNN_Transformer_Trainer:
             )
 
             # Use ssqueezepy to do cwt
-            wavelet = Wavelet()
-            Wx, scales = cwt(features, wavelet)
-            Sx = stft(features)[::-1]
+            Wx_k, scales = cwt(features, "gmw")
 
             # reshape to (batch, time, features)
-            features = features.permute(0, 2, 1)
+            features = Wx_k.permute(0, 2, 1)
 
         return features, n_time_steps
 

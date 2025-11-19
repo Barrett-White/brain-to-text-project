@@ -14,7 +14,8 @@ option(GRPC "whether to build gRPC" OFF)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/../../core 
+  ${CMAKE_SOURCE_DIR}/../../core
+  ${CMAKE_SOURCE_DIR}/../../core/kaldi
 )
 set(CMAKE_VERBOSE_MAKEFILE on)
 

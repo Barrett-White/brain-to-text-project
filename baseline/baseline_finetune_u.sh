@@ -20,6 +20,6 @@ mkdir -p logs
 echo "Starting Stage 2 (Unfrozen) Fine-Tuning..."
 echo "Running: baseline/finetuned_unfrozen.py"
 
-./env/bin/python baseline/finetuned_unfrozen.py
+./env/bin/python baseline/finetune_unfrozen.py
 
 echo "Job Complete."

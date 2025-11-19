@@ -29,48 +29,57 @@ if(NOT MSVC)
 endif()
 
 # -------------------------------------------------------
-# 1. GFLAGS (Force Static & Disable Install)
+# 1. GFLAGS (EXCLUDE_FROM_ALL Fix)
 # -------------------------------------------------------
 FetchContent_Declare(gflags
   URL      https://github.com/gflags/gflags/archive/v2.2.1.zip
   URL_HASH SHA256=4e44b69e709c826734dbbbd5208f61888a2faf63f239d73d8ba0011b2dccc97a
 )
-# Force Static Build
+
+# Force Static Build Settings
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GFLAGS_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GFLAGS_BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
-# FIX: Disable Gflags Install to prevent export noise
-set(INSTALL_HEADERS OFF CACHE BOOL "" FORCE)
-set(INSTALL_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(INSTALL_STATIC_LIBS OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(gflags)
+# Manually populate and add subdirectory with EXCLUDE_FROM_ALL
+# This prevents CMake from generating the broken "install(EXPORT)" rules
+FetchContent_GetProperties(gflags)
+if(NOT gflags_POPULATED)
+  FetchContent_Populate(gflags)
+  add_subdirectory(${gflags_SOURCE_DIR} ${gflags_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
 include_directories(${gflags_BINARY_DIR}/include)
 
 
 # -------------------------------------------------------
-# 2. GLOG (The Manual Bypass Fix)
+# 2. GLOG (EXCLUDE_FROM_ALL Fix)
 # -------------------------------------------------------
 FetchContent_Declare(glog
   URL      https://github.com/google/glog/archive/v0.4.0.zip
   URL_HASH SHA256=9e1b54eb2782f53cd8af107ecf08d2ab64b8d0dc2b7f5594472f3bd63ca85cdc
 )
 
-# CRITICAL FIX: Tell glog NOT to use gflags during configuration.
-# This prevents glog from creating the "install(EXPORT)" rule that crashes CMake.
+# Tell glog not to worry about gflags (we link manually)
 set(WITH_GFLAGS OFF CACHE BOOL "Manual gflags link" FORCE)
 
-FetchContent_MakeAvailable(glog)
+# Manually populate and add subdirectory with EXCLUDE_FROM_ALL
+FetchContent_GetProperties(glog)
+if(NOT glog_POPULATED)
+  FetchContent_Populate(glog)
+  add_subdirectory(${glog_SOURCE_DIR} ${glog_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
 include_directories(${glog_SOURCE_DIR}/src ${glog_BINARY_DIR})
 
-# MANUAL WIRING: Now we manually link gflags so the code works.
+# MANUAL WIRING: Link gflags manually since we disabled auto-detection
 target_link_libraries(glog PUBLIC gflags_nothreads_static)
 target_compile_definitions(glog PUBLIC HAVE_LIB_GFLAGS=1)
 
 
 # -------------------------------------------------------
-# 3. Other Dependencies
+# 3. Other Dependencies (Standard MakeAvailable)
 # -------------------------------------------------------
 # third_party: gtest
 FetchContent_Declare(googletest

@@ -61,7 +61,7 @@ dataset:
     smooth_kernel_size: 100
     smooth_data: true
     smooth_kernel_std: 2
-    mspca: true
+    turn_into_image: false
   neural_dim: 512
   batch_size: 32
   n_classes: 41

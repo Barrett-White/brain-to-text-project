@@ -12,12 +12,12 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=06:00:00
 
-# 1. Skip module loads (Your env handles this)
+# 1. Skip module loads
 # If you get a "conda: command not found" error, uncomment the next line:
 # module load anaconda
 
 # 2. Activate your custom environment
-source env/bin/activate
+cd /work/users/s/j/sjshen/brain-to-text-project
 
 # 3. Ensure log directory exists
 mkdir -p logs
@@ -27,5 +27,5 @@ echo "Starting Fine-Tuning Job on $(hostname)..."
 echo "Using Python: $(which python)"
 echo "Using PyTorch CUDA version: $(python -c 'import torch; print(torch.version.cuda)')"
 
-python baseline/finetune.py
+./env/bin/python baseline/finetune.py
 echo "Job Complete."

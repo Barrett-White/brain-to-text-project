@@ -18,6 +18,7 @@ from ssqueezepy import cwt
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from transformers import T5ForConditionalGeneration, T5Tokenizer
+from torchvision import transforms
 
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 from cnn_transformer_model.dataset_transformer import (
@@ -475,6 +476,18 @@ class CNN_Transformer_Trainer:
 
             # reshape to (batch, time, features)
             features = Wx_k.permute(0, 2, 1)
+
+            preprocess = transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+            features = preprocess(features)
 
         return features, n_time_steps
 

@@ -108,10 +108,16 @@ class CNN_Transformer_Trainer:
             torch.manual_seed(self.args["seed"])
 
         if not self.args["model"]["cnn_information"]["use_pretrained"]:
-            eenet = EEGNet(
+            cnn_net = EEGNet(
                 n_chans=self.args["model"]["n_input_features"],
                 n_outputs=self.args["model"]["n_units"],
                 n_times=self.args["dataset"]["temporal_bin"],
+            )
+        else:
+            cnn_net = torch.hub.load(
+                "pytorch/vision:v0.10.0",
+                self.args["model"]["cnn_information"]["pretrained_model_name"],
+                pretrained=True,
             )
 
         self.tokenizer = T5Tokenizer.from_pretrained(
@@ -128,7 +134,7 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            cnn_model=eenet,
+            cnn_model=cnn_net,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
         )
@@ -255,6 +261,10 @@ class CNN_Transformer_Trainer:
         for name, param in self.model.named_parameters():
             if "transformer_model" in name:
                 if "lm_head" not in name:
+                    param.requires_grad = False
+            # If we are using a pre-trained cnn, freeze this as well
+            elif self.args["model"]["cnn_information"]["use_pretrained"]:
+                if "cnn" in name:
                     param.requires_grad = False
 
         # Print out frozen info

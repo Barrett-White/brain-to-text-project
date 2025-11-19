@@ -10,10 +10,9 @@
 #SBATCH --partition=general   
 #SBATCH --time=02:00:00         
 
-# 1. Create logs directory
 mkdir -p logs
+module load anaconda
 
-# 2. Run the setup script
 echo "Starting Environment Setup on $(hostname)..."
 bash setup.sh
 echo "Setup Complete."

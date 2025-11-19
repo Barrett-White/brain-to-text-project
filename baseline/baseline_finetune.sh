@@ -10,7 +10,7 @@
 #SBATCH --partition=l40-gpu     
 #SBATCH --qos=gpu_access
 #SBATCH --gres=gpu:1
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 
 # 1. Skip module loads (Your env handles this)
 # If you get a "conda: command not found" error, uncomment the next line:

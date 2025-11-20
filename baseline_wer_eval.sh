@@ -17,9 +17,14 @@ module purge
 module load anaconda
 module load cuda/12.2
 
+ENV_PATH="/work/users/s/j/sjshen/brain-to-text-project/b2txt25_lm"
+PYTHON_EXEC="$ENV_PATH/bin/python"
+
 # 2. Activate Environment
 source /nas/longleaf/rhel9/apps/anaconda/2024.02/etc/profile.d/conda.sh
-conda activate /work/users/s/j/sjshen/brain-to-text-project/b2txt25_lm
+conda activate "$ENV_PATH"
+
+echo "Using Python interpreter: $PYTHON_EXEC"
 
 # 3. Run Evaluation
 cd baseline

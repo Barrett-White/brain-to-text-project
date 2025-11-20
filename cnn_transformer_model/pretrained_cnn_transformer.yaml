@@ -17,7 +17,7 @@ gpu_number: '1'
 mode: train
 use_amp: true
 output_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model
-checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model\checkpoint
+checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model/checkpoint
 init_from_checkpoint: false
 init_checkpoint_path: None
 save_best_checkpoint: true

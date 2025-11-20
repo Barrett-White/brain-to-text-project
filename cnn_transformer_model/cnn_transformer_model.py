@@ -77,11 +77,17 @@ class CNNTransformer(torch.nn.Module):
 
         h = self.input_dropout(h)
 
-        attn_mask = torch.ones(B, S, dtype=torch.long, device=h.device)
-        encoder_outputs = self.transformer_model.encoder(
-            inputs_embeds=h,
-            attention_mask=attn_mask,
-        )
+        if not self.pretrained_cnn:
+            attn_mask = torch.ones(B, S, dtype=torch.long, device=h.device)
+            encoder_outputs = self.transformer_model.encoder(
+                inputs_embeds=h,
+                attention_mask=attn_mask,
+            )
+        else:
+            # We don't need an attention mask because we didn't do padding in this version
+            encoder_outputs = self.transformer_model.encoder(
+                inputs_embeds=h,
+            )
         hidden = encoder_outputs.last_hidden_state
         hidden = self.rnn_dropout(hidden)
 

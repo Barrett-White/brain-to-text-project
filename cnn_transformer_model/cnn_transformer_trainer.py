@@ -8,6 +8,7 @@ import random
 import sys
 import time
 
+import matplotlib as mpl
 import numpy as np
 import torch
 import torchaudio.functional as taF
@@ -480,6 +481,13 @@ class CNN_Transformer_Trainer:
                     temporary_data[i, :, :] = Wx_k
 
             features = temporary_data
+
+            # Add a rgb channel dimension
+            features = np.expand_dims(features, axis=1)
+            norm = mpl.colors.Normalize(vmin=features.min(), vmax=features.max())
+
+            # Turn into torch tensor
+            features = torch.tensor(features, device=self.device)
 
             preprocess = transforms.Compose(
                 [

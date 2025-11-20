@@ -15,7 +15,6 @@ echo "Job started on $(hostname)"
 # 1. Load Modules
 module purge
 module load anaconda
-module load cuda/12.2
 
 ENV_PATH="/work/users/s/j/sjshen/brain-to-text-project/b2txt25_lm"
 PYTHON_EXEC="$ENV_PATH/bin/python"
@@ -26,6 +25,8 @@ conda activate "$ENV_PATH"
 
 unset PYTHONPATH
 export PYTHONNOUSERSITE=1
+
+export LD_LIBRARY_PATH="$ENV_PATH/lib/python3.9/site-packages/nvidia/cublas/lib:$ENV_PATH/lib/python3.9/site-packages/nvidia/cudnn/lib:$LD_LIBRARY_PATH"
 
 echo "Using Python interpreter: $PYTHON_EXEC"
 echo "Verifying Torch..."

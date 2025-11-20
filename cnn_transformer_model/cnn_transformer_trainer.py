@@ -7,10 +7,12 @@ import pickle
 import random
 import sys
 import time
+
 import matplotlib as mpl
 import numpy as np
 import torch
 import torchaudio.functional as taF
+from array2image import array_to_image
 from braindecode.models import EEGNet
 from mspca import mspca
 from omegaconf import OmegaConf
@@ -20,7 +22,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from transformers import T5ForConditionalGeneration, T5Tokenizer
-from array2image import array_to_image
 
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 from cnn_transformer_model.dataset_transformer import (
@@ -473,6 +474,8 @@ class CNN_Transformer_Trainer:
             )
             # mspca function
             # turn features into numpy array
+            # Fix Got unsupported ScalarType BFloat16 error by converting to float32
+            features = features.to(torch.float32)
             features = features.cpu().numpy()
             # we have batches, so we need to loop over the batch dimension
             all_images = []

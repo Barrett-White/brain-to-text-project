@@ -1,24 +1,23 @@
 #!/bin/bash
 
-# Ensure that the script is run from the root directory of the project
+# 1. PRE-FLIGHT CHECKS
 if [ ! -f "setup_lm.sh" ]; then
-    echo "This script must be run from the root directory of the project."
+    echo "Error: This script must be run from the root directory of the project."
     exit 1
 fi
 
-# ensure that the language_model/runtime/server/x86/build directory does not exist
+# Ensure clean slate (Script fails if previous build exists, to prevent mixing)
 if [ -d "language_model/runtime/server/x86/build" ]; then
-    echo "The language_model/runtime/server/x86/build directory already exists. Please remove it before running this script."
+    echo "Error: 'build' directory exists. Please run: rm -rf language_model/runtime/server/x86/build"
     exit 1
 fi
 
-# ensure that the language_model/runtime/server/x86/fc_base directory does not exist
 if [ -d "language_model/runtime/server/x86/fc_base" ]; then
-    echo "The language_model/runtime/server/x86/fc_base directory already exists. Please remove it before running this script."
+    echo "Error: 'fc_base' directory exists. Please run: rm -rf language_model/runtime/server/x86/fc_base"
     exit 1
 fi
 
-
+# 2. HPC MODULE SETUP (Auto-detects Longleaf)
 if command -v module &> /dev/null; then
     echo "HPC Environment detected. Loading modules..."
     module purge
@@ -27,43 +26,47 @@ if command -v module &> /dev/null; then
     module load gcc
 fi
 
-# make sure CMake is installed
+# 3. VERIFY TOOLS
 if ! command -v cmake &> /dev/null; then
-    echo "CMake is not installed. Please install CMake >= 3.14."
+    echo "Error: CMake is not installed (>= 3.14 required)."
     exit 1
 fi
 
-# make sure gcc is installed
 if ! command -v gcc &> /dev/null; then
-    echo "GCC is not installed. Please install GCC >= 10.1 ."
+    echo "Error: GCC is not installed (>= 10.1 required)."
     exit 1
 fi
 
-CONDA_BASE=$(conda info --base 2>/dev/null)
-if [ -z "$CONDA_BASE" ]; then
-    # Fallback for Longleaf if 'conda' isn't in PATH yet
-    CONDA_BASE="/nas/longleaf/rhel9/apps/anaconda/2024.02"
-fi
+# 4. CONDA SETUP
+# Try to find conda base path dynamically, fallback to Longleaf default
+CONDA_BASE=$(conda info --base 2>/dev/null || echo "/nas/longleaf/rhel9/apps/anaconda/2024.02")
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 
-# Ensure conda is available
-source "$(conda info --base)/etc/profile.d/conda.sh"
-
-# Create conda environment with Python 3.9
+# 5. CREATE ENVIRONMENT
+echo "Creating Conda Environment (b2txt25_lm)..."
 conda create --prefix ./b2txt25_lm python=3.9 -y
 
-# Activate the new environment
-conda activate ./b2txt25_lm
+# 6. DEPENDENCY INSTALLATION
+# We define the Explicit Python Executable to bypass activation issues
+PYTHON_EXEC="$(pwd)/b2txt25_lm/bin/python"
 
-# Upgrade pip
-pip install --upgrade pip
+# ISOLATION: Prevent pip from seeing your home directory (~/.local)
+export PYTHONNOUSERSITE=1
 
-# Install additional packages
-pip install \
+echo "Installing Golden Dependency List..."
+# Upgrade pip first
+"$PYTHON_EXEC" -m pip install --upgrade pip
+
+# Install Exact Versions (Fixes Numpy 2.0 / Torch 1.13 / CUDA 11 conflicts)
+"$PYTHON_EXEC" -m pip install \
     torch==1.13.1 \
+    nvidia-cublas-cu11==11.10.3.66 \
+    nvidia-cuda-runtime-cu11==11.7.99 \
+    typing_extensions==4.10.0 \
+    numpy==1.26.4 \
+    pandas==2.2.2 \
     redis==5.0.6 \
     jupyter==1.1.1 \
-    numpy==1.24.4 \
     matplotlib==3.9.0 \
     scipy==1.11.1 \
     scikit-learn==1.6.1 \
@@ -74,23 +77,30 @@ pip install \
     transformers==4.40.0 \
     tokenizers==0.19.1 \
     accelerate==0.33.0 \
-    bitsandbytes==0.41.1 \
-    pandas==2.3.0
+    bitsandbytes==0.41.1
 
-# cd to the language model directory and install the language model
+# 7. COMPILE DECODER
+echo "Compiling Decoder..."
 cd language_model/runtime/server/x86
 
-# CRITICAL FIX: Unload system anaconda and isolate CMake environment
-module unload anaconda 2>/dev/null || true
-export CMAKE_PREFIX_PATH="$CONDA_PREFIX"
-export PKG_CONFIG_PATH="$CONDA_PREFIX/lib/pkgconfig"
+# Unload system anaconda to prevent CMake gflags conflict
+if command -v module &> /dev/null; then
+    module unload anaconda
+fi
+
+# Point CMake to our isolated environment
+export CMAKE_PREFIX_PATH="$(pwd)/../../../../b2txt25_lm"
+export PKG_CONFIG_PATH="$(pwd)/../../../../b2txt25_lm/lib/pkgconfig"
 export CMAKE_BUILD_PARALLEL_LEVEL=12
 
-python setup.py install
+# Run setup using our explicit python
+"$PYTHON_EXEC" setup.py install
 
-# cd back to the root directory
+# 8. FINISH
 cd ../../../..
 
 echo
-echo "Setup complete! Verify it worked by activating the conda environment with the command 'conda activate b2txt25_lm'."
+echo "Setup complete!"
+echo "To use: source $CONDA_BASE/etc/profile.d/conda.sh"
+echo "        conda activate ./b2txt25_lm"
 echo

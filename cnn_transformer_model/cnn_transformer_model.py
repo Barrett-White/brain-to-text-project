@@ -13,8 +13,10 @@ class CNNTransformer(torch.nn.Module):
         cnn_model,
         transformer_model,
         temporal_bin,
+        pretrained_cnn: bool = False,
     ):
         super().__init__()
+        self.pretrained_cnn = pretrained_cnn
         self.neural_dim = neural_dim
         self.n_units = n_units
         self.n_days = n_days
@@ -35,21 +37,25 @@ class CNNTransformer(torch.nn.Module):
         self.out = torch.nn.Linear(d_model, n_classes)
 
     def forward(self, features, day_indices):
-        B, T, C = features.shape
-        bin_len = self.temporal_bin
+        if not self.pretrained_cnn:
+            B, T, C = features.shape
+            bin_len = self.temporal_bin
 
-        S = (T + bin_len - 1) // bin_len
-        T_eff = S * bin_len
-        if T_eff > T:
-            pad = torch.zeros(
-                B, T_eff - T, C, device=features.device, dtype=features.dtype
-            )
-            x = torch.cat([features, pad], dim=1)
+            S = (T + bin_len - 1) // bin_len
+            T_eff = S * bin_len
+            if T_eff > T:
+                pad = torch.zeros(
+                    B, T_eff - T, C, device=features.device, dtype=features.dtype
+                )
+                x = torch.cat([features, pad], dim=1)
+            else:
+                x = features
+
+            x = x.view(B, S, bin_len, C).permute(0, 1, 3, 2)
+            x = x.reshape(B * S, C, bin_len)
+
         else:
             x = features
-
-        x = x.view(B, S, bin_len, C).permute(0, 1, 3, 2)
-        x = x.reshape(B * S, C, bin_len)
 
         eeg_feat = self.cnn(x)
         eeg_feat = eeg_feat.view(B, S, self.n_units)

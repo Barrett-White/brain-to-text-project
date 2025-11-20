@@ -20,3 +20,6 @@ datasets
 evaluate
 sentencepiece
 braindecode
+mspca
+ssqueezepy
+array2image

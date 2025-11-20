@@ -7,15 +7,20 @@ import pickle
 import random
 import sys
 import time
-
+import matplotlib as mpl
 import numpy as np
 import torch
 import torchaudio.functional as taF
 from braindecode.models import EEGNet
+from mspca import mspca
 from omegaconf import OmegaConf
+from ssqueezepy import cwt
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
+from torchvision import transforms
+from tqdm import tqdm
 from transformers import T5ForConditionalGeneration, T5Tokenizer
+from array2image import array_to_image
 
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 from cnn_transformer_model.dataset_transformer import (
@@ -105,11 +110,18 @@ class CNN_Transformer_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        eenet = EEGNet(
-            n_chans=self.args["model"]["n_input_features"],
-            n_outputs=self.args["model"]["n_units"],
-            n_times=self.args["dataset"]["temporal_bin"],
-        )
+        if not self.args["model"]["cnn_information"]["use_pretrained"]:
+            cnn = EEGNet(
+                n_chans=self.args["model"]["n_input_features"],
+                n_outputs=self.args["model"]["n_units"],
+                n_times=self.args["dataset"]["temporal_bin"],
+            )
+        else:
+            cnn = torch.hub.load(
+                "pytorch/vision:v0.10.0",
+                self.args["model"]["cnn_information"]["pretrained_model_name"],
+                pretrained=True,
+            )
 
         self.tokenizer = T5Tokenizer.from_pretrained(
             self.args["model"]["transformer_name"]
@@ -125,9 +137,10 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            eenet_model=eenet,
+            cnn_model=cnn,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
+            pretrained_cnn=self.args["model"]["cnn_information"]["use_pretrained"],
         )
 
         if self.args["use_torch_compile"]:
@@ -253,11 +266,10 @@ class CNN_Transformer_Trainer:
             if "transformer_model" in name:
                 if "lm_head" not in name:
                     param.requires_grad = False
-
-        # Print out frozen info
-        for name, param in self.model.named_parameters():
-            if not param.requires_grad:
-                self.logger.info(f"Frozen: {name}")
+            # Freeze pre-trained CNN
+            if self.args["model"]["cnn_information"]["use_pretrained"]:
+                if "cnn" in name:
+                    param.requires_grad = False
 
         self.model.to(self.device)
 
@@ -447,6 +459,44 @@ class CNN_Transformer_Trainer:
                 smooth_kernel_std=self.transform_args["smooth_kernel_std"],
                 smooth_kernel_size=self.transform_args["smooth_kernel_size"],
             )
+
+        if self.transform_args["turn_into_image"]:
+            preprocess = transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+            # mspca function
+            # turn features into numpy array
+            features = features.cpu().numpy()
+            # we have batches, so we need to loop over the batch dimension
+            all_images = []
+            for i in tqdm(range(features.shape[0])):
+                mymodel = mspca.MultiscalePCA()
+                pca_temp = mymodel.fit_transform(
+                    features[i, :, :], wavelet_func="db4", threshold=0.3
+                )
+                # TODO - fix the fact that we are simply averaging across all channels
+                pca_temp = pca_temp.mean(0)
+                Wx_k, scales = cwt(pca_temp, "gmw")
+
+                # We must normalize Wx_k between 0 and 1
+                image = array_to_image(np.abs(Wx_k), norm=True, cmap=mpl.cm.jet)
+
+                # Now, we need to convert to RGB and get the channel information
+                image = image.convert("RGB")
+
+                image = preprocess(image)
+                all_images.append(image)
+
+            temporary_data = np.stack(all_images)
+            # Turn into torch tensor
+            features = torch.tensor(temporary_data, device=self.device)
 
         return features, n_time_steps
 

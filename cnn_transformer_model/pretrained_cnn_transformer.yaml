@@ -7,23 +7,22 @@ model:
   patch_size: 0
   patch_stride: 0
   input_network:
-    n_input_layers: 1
-    input_layer_sizes:
-    - 512
     input_trainable: true
-    input_layer_dropout: 0.2
-  ff_dim: 512
-  num_heads: 4
+    input_layer_dropout: 0.1
+  transformer_name: google/flan-t5-small
+  cnn_information:
+    use_pretrained: true
+    pretrained_model_name: "shufflenet_v2_x1_0"
 gpu_number: '1'
 mode: train
 use_amp: true
-output_dir: /content/drive/MyDrive/STOR566Project/models/transformer_model
-checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/transformer_model/checkpoint
+output_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model
+checkpoint_dir: /content/drive/MyDrive/STOR566Project/models/pretrained_cnn_transformer_model/checkpoint
 init_from_checkpoint: false
 init_checkpoint_path: None
 save_best_checkpoint: true
 save_all_val_steps: false
-save_final_model: false
+save_final_model: true
 save_val_metrics: true
 early_stopping: false
 early_stopping_val_steps: 20
@@ -53,17 +52,18 @@ save_val_logits: true
 save_val_data: false
 dataset:
   data_transforms:
-    white_noise_std: 1.0
-    constant_offset_std: 0.2
+    white_noise_std: 0.0
+    constant_offset_std: 0.0
     random_walk_std: 0.0
-    random_walk_axis: -1
+    random_walk_axis: 1
     static_gain_std: 0.0
-    random_cut: 3
+    random_cut: 0
     smooth_kernel_size: 100
     smooth_data: true
     smooth_kernel_std: 2
+    turn_into_image: true
   neural_dim: 512
-  batch_size: 8
+  batch_size: 32
   n_classes: 41
   max_seq_elements: 500
   days_per_batch: 4
@@ -71,6 +71,7 @@ dataset:
   num_dataloader_workers: 2
   loader_shuffle: false
   must_include_days: null
+  temporal_bin: 50
   test_percentage: 0.1
   feature_subset: null
   dataset_dir: /content/drive/MyDrive/STOR566Project/data/brain-to-text-25/t15_copyTask_neuralData/hdf5_data_final

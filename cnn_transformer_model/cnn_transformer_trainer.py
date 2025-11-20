@@ -462,6 +462,8 @@ class CNN_Transformer_Trainer:
                 pca_temp = mymodel.fit_transform(
                     features[i, :, :], wavelet_func="db4", threshold=0.3
                 )
+                # TODO - fix the fact that we are simply averaging across all channels
+                pca_temp = pca_temp.mean(0)
                 Wx_k, scales = cwt(pca_temp, "gmw")
                 # save to a new array with (batch, features, time)
                 if i == 0:
@@ -470,7 +472,6 @@ class CNN_Transformer_Trainer:
                             features.shape[0],
                             Wx_k.shape[0],
                             Wx_k.shape[1],
-                            Wx_k.shape[2],
                         ),
                         dtype=np.float32,
                     )
@@ -479,11 +480,6 @@ class CNN_Transformer_Trainer:
                     temporary_data[i, :, :] = Wx_k
 
             features = temporary_data
-
-            # This tensor is currently in the wrong dimensions
-            # We have shape of (batch, 1648, 229, 512), and we need the channels to be 3
-            features = torch.tensor(features, device=self.device)
-            features = features.permute(0, 3, 1, 2)
 
             preprocess = transforms.Compose(
                 [

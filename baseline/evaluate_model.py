@@ -2,12 +2,12 @@ import os
 import torch
 import numpy as np
 import pandas as pd
-import redis
 from omegaconf import OmegaConf
 import time
 from tqdm import tqdm
 import editdistance
 import argparse
+import lm_decoder
 
 from rnn_model import GRUDecoder
 from evaluate_model_helpers import *
@@ -25,15 +25,22 @@ parser.add_argument('--csv_path', type=str, default='../data/t15_copyTaskData_de
                     help='Path to the CSV file with metadata about the dataset (relative to the current working directory).')
 parser.add_argument('--gpu_number', type=int, default=1,
                     help='GPU number to use for RNN model inference. Set to -1 to use CPU.')
+
+# --- NEW DECODER ARGUMENTS ---
+parser.add_argument('--lm_path', type=str, default='../language_model/pretrained_language_models/3gram.model',
+                    help='Path to the KenLM n-gram model file.')
+parser.add_argument('--lm_alpha', type=float, default=1.5,
+                    help='Language Model weight (Alpha).')
+parser.add_argument('--lm_beta', type=float, default=2.0,
+                    help='Word Insertion Penalty (Beta).')
+# -----------------------------
+
 args = parser.parse_args()
 
 # paths to model and data directories
-# Note: these paths are relative to the current working directory
 model_path = args.model_path
 data_dir = args.data_dir
-
-# define evaluation type
-eval_type = args.eval_type  # can be 'val' or 'test'. if 'test', ground truth is not available
+eval_type = args.eval_type  
 
 # load csv file
 b2txt_csv_df = pd.read_csv(args.csv_path)
@@ -70,7 +77,6 @@ model = GRUDecoder(
 
 # load model weights
 checkpoint = torch.load(os.path.join(model_path, 'checkpoint/best_checkpoint'), map_location=device, weights_only=False)
-# rename keys to not start with "module." (happens if model was saved with DataParallel)
 for key in list(checkpoint['model_state_dict'].keys()):
     checkpoint['model_state_dict'][key.replace("module.", "")] = checkpoint['model_state_dict'].pop(key)
     checkpoint['model_state_dict'][key.replace("_orig_mod.", "")] = checkpoint['model_state_dict'].pop(key)
@@ -78,8 +84,6 @@ model.load_state_dict(checkpoint['model_state_dict'])
 
 # add model to device
 model.to(device) 
-
-# set model to eval mode
 model.eval()
 
 # load data for each session
@@ -99,7 +103,9 @@ print(f'Total number of {eval_type} trials: {total_test_trials}')
 print()
 
 
-# put neural data through the pretrained model to get phoneme predictions (logits)
+# ---------------------------------------------------------
+# STEP 1: RNN INFERENCE (Generate Acoustic Logits)
+# ---------------------------------------------------------
 with tqdm(total=total_test_trials, desc='Predicting phoneme sequences', unit='trial') as pbar:
     for session, data in test_data.items():
 
@@ -125,53 +131,26 @@ with tqdm(total=total_test_trials, desc='Predicting phoneme sequences', unit='tr
 pbar.close()
 
 
-# convert logits to phoneme sequences and print them out
-for session, data in test_data.items():
-    data['pred_seq'] = []
-    for trial in range(len(data['logits'])):
-        logits = data['logits'][trial][0]
-        pred_seq = np.argmax(logits, axis=-1)
-        # remove blanks (0)
-        pred_seq = [int(p) for p in pred_seq if p != 0]
-        # remove consecutive duplicates
-        pred_seq = [pred_seq[i] for i in range(len(pred_seq)) if i == 0 or pred_seq[i] != pred_seq[i-1]]
-        # convert to phonemes
-        pred_seq = [LOGIT_TO_PHONEME[p] for p in pred_seq]
-        # add to data
-        data['pred_seq'].append(pred_seq)
+# ---------------------------------------------------------
+# STEP 2: LANGUAGE MODEL DECODING (Local C++ Decoder)
+# ---------------------------------------------------------
+print("\nInitializing C++ LM Decoder...")
 
-        # print out the predicted sequences
-        block_num = data['block_num'][trial]
-        trial_num = data['trial_num'][trial]
-        print(f'Session: {session}, Block: {block_num}, Trial: {trial_num}')
-        if eval_type == 'val':
-            sentence_label = data['sentence_label'][trial]
-            true_seq = data['seq_class_ids'][trial][0:data['seq_len'][trial]]
-            true_seq = [LOGIT_TO_PHONEME[p] for p in true_seq]
+# Prepare Vocabulary List
+# LOGIT_TO_PHONEME is a dictionary {index: 'phoneme'}.
+# The decoder typically expects a list where list[i] is the label for index i.
+vocab_list = [LOGIT_TO_PHONEME[i] for i in range(len(LOGIT_TO_PHONEME))]
 
-            print(f'Sentence label:      {sentence_label}')
-            print(f'True sequence:       {" ".join(true_seq)}')
-        print(f'Predicted Sequence:  {" ".join(pred_seq)}')
-        print()
+# Initialize the Scorer
+# Note: We assume the C++ API handles (alpha, beta, model_path, vocabulary)
+scorer = lm_decoder.Scorer(
+    args.lm_alpha, 
+    args.lm_beta, 
+    args.lm_path, 
+    vocab_list
+)
 
-
-# language model inference via redis
-# make sure that the standalone language model is running on the localhost redis ip
-# see README.md for instructions on how to run the language model
-r = redis.Redis(host='localhost', port=6379, db=0)
-r.flushall()  # clear all streams in redis
-
-# define redis streams for the remote language model
-remote_lm_input_stream = 'remote_lm_input'
-remote_lm_output_partial_stream = 'remote_lm_output_partial'
-remote_lm_output_final_stream = 'remote_lm_output_final'
-
-# set timestamps for last entries seen in the redis streams
-remote_lm_output_partial_lastEntrySeen = get_current_redis_time_ms(r)
-remote_lm_output_final_lastEntrySeen = get_current_redis_time_ms(r)
-remote_lm_done_resetting_lastEntrySeen = get_current_redis_time_ms(r)
-remote_lm_done_finalizing_lastEntrySeen = get_current_redis_time_ms(r)
-remote_lm_done_updating_lastEntrySeen = get_current_redis_time_ms(r)
+print(f"Decoder initialized with Alpha={args.lm_alpha}, Beta={args.lm_beta}")
 
 lm_results = {
     'session': [],
@@ -181,63 +160,50 @@ lm_results = {
     'pred_sentence': [],
 }
 
-# loop through all trials and put logits into the remote language model to get text predictions
-# note: this takes ~15-20 minutes to run on the entire test split with the 5-gram LM + OPT rescoring (RTX 4090)
-with tqdm(total=total_test_trials, desc='Running remote language model', unit='trial') as pbar:
+print("Running Beam Search Decoding...")
+with tqdm(total=total_test_trials, desc='Decoding with LM', unit='trial') as pbar:
     for session in test_data.keys():
         for trial in range(len(test_data[session]['logits'])):
-            # get trial logits and rearrange them for the LM
-            logits = rearrange_speech_logits_pt(test_data[session]['logits'][trial])[0]
-
-            # reset language model
-            remote_lm_done_resetting_lastEntrySeen = reset_remote_language_model(r, remote_lm_done_resetting_lastEntrySeen)
             
-            '''
-            # update language model parameters
-            remote_lm_done_updating_lastEntrySeen = update_remote_lm_params(
-                r,
-                remote_lm_done_updating_lastEntrySeen,
-                acoustic_scale=0.35,
-                blank_penalty=90.0,
-                alpha=0.55,
-            )
-            '''
+            # Get logits for this trial
+            # data['logits'][trial] is a tensor of shape [1, Time, Classes]
+            # We need a numpy array of shape [Time, Classes]
+            logits_tensor = test_data[session]['logits'][trial]
+            
+            # Ensure it's on CPU and convert to numpy
+            if torch.is_tensor(logits_tensor):
+                logits_np = logits_tensor.squeeze(0).float().cpu().numpy()
+            else:
+                logits_np = logits_tensor[0]
 
-            # put logits into LM
-            remote_lm_output_partial_lastEntrySeen, decoded = send_logits_to_remote_lm(
-                r,
-                remote_lm_input_stream,
-                remote_lm_output_partial_stream,
-                remote_lm_output_partial_lastEntrySeen,
-                logits,
-            )
-
-            # finalize remote LM
-            remote_lm_output_final_lastEntrySeen, lm_out = finalize_remote_lm(
-                r,
-                remote_lm_output_final_stream,
-                remote_lm_output_final_lastEntrySeen,
-            )
-
-            # get the best candidate sentence
-            best_candidate_sentence = lm_out['candidate_sentences'][0]
+            # --- DIRECT DECODE ---
+            try:
+                decoded_text = scorer.decode(logits_np)
+            except Exception as e:
+                print(f"Decoding error on {session} trial {trial}: {e}")
+                decoded_text = ""
+            # ---------------------
 
             # store results
             lm_results['session'].append(session)
             lm_results['block'].append(test_data[session]['block_num'][trial])
             lm_results['trial'].append(test_data[session]['trial_num'][trial])
+            
             if eval_type == 'val':
                 lm_results['true_sentence'].append(test_data[session]['sentence_label'][trial])
             else:
                 lm_results['true_sentence'].append(None)
-            lm_results['pred_sentence'].append(best_candidate_sentence)
+                
+            lm_results['pred_sentence'].append(decoded_text)
 
             # update progress bar
             pbar.update(1)
 pbar.close()
 
 
-# if using the validation set, lets calculate the aggregate word error rate (WER)
+# ---------------------------------------------------------
+# STEP 3: WER CALCULATION & OUTPUT
+# ---------------------------------------------------------
 if eval_type == 'val':
     total_true_length = 0
     total_edit_distance = 0
@@ -246,8 +212,8 @@ if eval_type == 'val':
     lm_results['num_words'] = []
 
     for i in range(len(lm_results['pred_sentence'])):
-        true_sentence = remove_punctuation(lm_results['true_sentence'][i]).strip()
-        pred_sentence = remove_punctuation(lm_results['pred_sentence'][i]).strip()
+        true_sentence = remove_punctuation(lm_results['true_sentence'][i] or "").strip()
+        pred_sentence = remove_punctuation(lm_results['pred_sentence'][i] or "").strip()
         ed = editdistance.eval(true_sentence.split(), pred_sentence.split())
 
         total_true_length += len(true_sentence.split())
@@ -259,12 +225,20 @@ if eval_type == 'val':
         print(f'{lm_results["session"][i]} - Block {lm_results["block"][i]}, Trial {lm_results["trial"][i]}')
         print(f'True sentence:       {true_sentence}')
         print(f'Predicted sentence:  {pred_sentence}')
-        print(f'WER: {ed} / {100 * len(true_sentence.split())} = {ed / len(true_sentence.split()):.2f}%')
+        # Handle zero-length sentences to avoid division by zero
+        denom = len(true_sentence.split())
+        if denom > 0:
+            print(f'WER: {ed} / {denom} = {ed / denom:.2f}')
+        else:
+            print(f'WER: {ed} / 0 = N/A')
         print()
 
     print(f'Total true sentence length: {total_true_length}')
     print(f'Total edit distance: {total_edit_distance}')
-    print(f'Aggregate Word Error Rate (WER): {100 * total_edit_distance / total_true_length:.2f}%')
+    if total_true_length > 0:
+        print(f'Aggregate Word Error Rate (WER): {100 * total_edit_distance / total_true_length:.2f}%')
+    else:
+        print('Aggregate WER: N/A (Total true length is 0)')
 
 
 # write predicted sentences to a csv file. put a timestamp in the filename (YYYYMMDD_HHMMSS)
@@ -272,3 +246,4 @@ output_file = os.path.join(model_path, f'baseline_rnn_{eval_type}_predicted_sent
 ids = [i for i in range(len(lm_results['pred_sentence']))]
 df_out = pd.DataFrame({'id': ids, 'text': lm_results['pred_sentence']})
 df_out.to_csv(output_file, index=False)
+print(f"Results saved to {output_file}")

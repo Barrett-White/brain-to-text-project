@@ -15,7 +15,7 @@ echo "--- Upgrading pip in the new environment ---"
 conda run --prefix ./env pip install --upgrade pip || true
 
 echo "--- Installing PyTorch ---"
-conda run --prefix ./env pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+conda run --prefix ./env pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu126
 
 echo "--- Installing all other packages ---"
 # NOTE: The indentation here is with standard spaces, which will work correctly.

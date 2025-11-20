@@ -56,6 +56,7 @@ class CNNTransformer(torch.nn.Module):
 
         else:
             x = features
+            B, S = features.shape
 
         eeg_feat = self.cnn(x)
         eeg_feat = eeg_feat.view(B, S, self.n_units)

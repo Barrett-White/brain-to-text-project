@@ -110,11 +110,18 @@ class CNN_Transformer_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        eenet = EEGNet(
-            n_chans=self.args["model"]["n_input_features"],
-            n_outputs=self.args["model"]["n_units"],
-            n_times=self.args["dataset"]["temporal_bin"],
-        )
+        if not self.args["model"]["cnn_information"]["use_pretrained"]:
+            cnn = EEGNet(
+                n_chans=self.args["model"]["n_input_features"],
+                n_outputs=self.args["model"]["n_units"],
+                n_times=self.args["dataset"]["temporal_bin"],
+            )
+        else:
+            cnn = torch.hub.load(
+                "pytorch/vision:v0.10.0",
+                self.args["model"]["cnn_information"]["pretrained_model_name"],
+                pretrained=True,
+            )
 
         self.tokenizer = T5Tokenizer.from_pretrained(
             self.args["model"]["transformer_name"]
@@ -130,7 +137,7 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            cnn_model=eenet,
+            cnn_model=cnn,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
             pretrained_cnn=self.args["model"]["cnn_information"]["use_pretrained"],
@@ -258,6 +265,10 @@ class CNN_Transformer_Trainer:
         for name, param in self.model.named_parameters():
             if "transformer_model" in name:
                 if "lm_head" not in name:
+                    param.requires_grad = False
+            # Freeze pre-trained CNN
+            if self.args["model"]["cnn_information"]["use_pretrained"]:
+                if "cnn" in name:
                     param.requires_grad = False
 
         self.model.to(self.device)

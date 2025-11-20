@@ -28,7 +28,11 @@ class CNNTransformer(torch.nn.Module):
 
         d_model = self.transformer_model.config.d_model
 
-        self.proj_to_t5 = torch.nn.Linear(n_units, d_model)
+        # For eegnet or pretrained cnn
+        if not pretrained_cnn:
+            self.proj_to_t5_eegnet = torch.nn.Linear(n_units, d_model)
+        else:
+            self.proj_to_t5_cnn = torch.nn.Linear(1000, d_model)
         self.day_embeddings = torch.nn.Embedding(n_days, d_model)
 
         self.input_dropout = torch.nn.Dropout(input_dropout)
@@ -37,9 +41,9 @@ class CNNTransformer(torch.nn.Module):
         self.out = torch.nn.Linear(d_model, n_classes)
 
     def forward(self, features, day_indices):
+        bin_len = self.temporal_bin
         if not self.pretrained_cnn:
             B, T, C = features.shape
-            bin_len = self.temporal_bin
 
             S = (T + bin_len - 1) // bin_len
             T_eff = S * bin_len
@@ -56,12 +60,17 @@ class CNNTransformer(torch.nn.Module):
 
         else:
             x = features
-            B, S = features.shape
+            B, C, T, _ = features.shape
+            S = (T + bin_len - 1) // bin_len
 
         eeg_feat = self.cnn(x)
-        eeg_feat = eeg_feat.view(B, S, self.n_units)
 
-        h = self.proj_to_t5(eeg_feat)
+        if not self.pretrained_cnn:
+            eeg_feat = eeg_feat.view(B, S, self.n_units)
+
+            h = self.proj_to_t5_eegnet(eeg_feat)
+        else:
+            h = self.proj_to_t5_cnn(eeg_feat)
 
         day_emb = self.day_embeddings(day_indices).unsqueeze(1)
         h = h + day_emb

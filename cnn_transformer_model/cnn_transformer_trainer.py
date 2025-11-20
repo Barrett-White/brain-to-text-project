@@ -7,7 +7,7 @@ import pickle
 import random
 import sys
 import time
-
+import matplotlib as mpl
 import numpy as np
 import torch
 import torchaudio.functional as taF
@@ -454,40 +454,6 @@ class CNN_Transformer_Trainer:
             )
 
         if self.transform_args["turn_into_image"]:
-            # mspca function
-            # turn features into numpy array
-            features = features.cpu().numpy()
-            # we have batches, so we need to loop over the batch dimension
-            for i in tqdm(range(features.shape[0])):
-                mymodel = mspca.MultiscalePCA()
-                pca_temp = mymodel.fit_transform(
-                    features[i, :, :], wavelet_func="db4", threshold=0.3
-                )
-                # TODO - fix the fact that we are simply averaging across all channels
-                pca_temp = pca_temp.mean(0)
-                Wx_k, scales = cwt(pca_temp, "gmw")
-
-                image = array_to_image(Wx_k)
-
-                # save to a new array with (batch, features, time)
-                if i == 0:
-                    temporary_data = np.zeros(
-                        (
-                            features.shape[0],
-                            Wx_k.shape[0],
-                            Wx_k.shape[1],
-                        ),
-                        dtype=np.float32,
-                    )
-                    temporary_data[i, :, :] = image
-                else:
-                    temporary_data[i, :, :] = image
-
-            features = temporary_data
-
-            # Turn into torch tensor
-            features = torch.tensor(features, device=self.device)
-
             preprocess = transforms.Compose(
                 [
                     transforms.Resize(256),
@@ -498,7 +464,33 @@ class CNN_Transformer_Trainer:
                     ),
                 ]
             )
-            features = preprocess(features)
+            # mspca function
+            # turn features into numpy array
+            features = features.cpu().numpy()
+            # we have batches, so we need to loop over the batch dimension
+            all_images = []
+            for i in tqdm(range(features.shape[0])):
+                mymodel = mspca.MultiscalePCA()
+                pca_temp = mymodel.fit_transform(
+                    features[i, :, :], wavelet_func="db4", threshold=0.3
+                )
+                # TODO - fix the fact that we are simply averaging across all channels
+                pca_temp = pca_temp.mean(0)
+                Wx_k, scales = cwt(pca_temp, "gmw")
+
+                # We must normalize Wx_k between 0 and 1
+                image = array_to_image(np.abs(Wx_k), norm=True, cmap=mpl.cm.jet)
+
+                # Now, we need to convert to RGB and get the channel information
+                image = image.convert("RGB")
+
+                image = preprocess(image)
+                all_images.append(image)
+
+            temporary_data = np.stack(all_images)
+            # Turn into torch tensor
+            features = torch.tensor(temporary_data, device=self.device)
+
         return features, n_time_steps
 
     def train(self):

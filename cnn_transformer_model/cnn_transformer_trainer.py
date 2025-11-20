@@ -16,6 +16,7 @@ from array2image import array_to_image
 from braindecode.models import EEGNet
 from mspca import mspca
 from omegaconf import OmegaConf
+from scipy.linalg import LinAlgError
 from ssqueezepy import cwt
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -480,10 +481,15 @@ class CNN_Transformer_Trainer:
             # we have batches, so we need to loop over the batch dimension
             all_images = []
             for i in tqdm(range(features.shape[0])):
-                mymodel = mspca.MultiscalePCA()
-                pca_temp = mymodel.fit_transform(
-                    features[i, :, :], wavelet_func="db4", threshold=0.3
-                )
+                try:
+                    mymodel = mspca.MultiscalePCA()
+                    pca_temp = mymodel.fit_transform(
+                        features[i, :, :], wavelet_func="db4", threshold=0.3
+                    )
+                except LinAlgError as e:
+                    self.logger.warning(f"Error in mspca fit_transform: {str(e)}")
+                    # Skip mspsca on this batch
+                    pca_temp = features[i, :, :]
                 # TODO - fix the fact that we are simply averaging across all channels
                 pca_temp = pca_temp.mean(0)
                 Wx_k, scales = cwt(pca_temp, "gmw")

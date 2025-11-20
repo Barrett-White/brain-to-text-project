@@ -130,7 +130,7 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            eenet_model=eenet,
+            cnn_model=eenet,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
         )

@@ -8,7 +8,6 @@ import random
 import sys
 import time
 
-import matplotlib as mpl
 import numpy as np
 import torch
 import torchaudio.functional as taF
@@ -21,6 +20,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from transformers import T5ForConditionalGeneration, T5Tokenizer
+from array2image import array2image
 
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 from cnn_transformer_model.dataset_transformer import (
@@ -466,6 +466,9 @@ class CNN_Transformer_Trainer:
                 # TODO - fix the fact that we are simply averaging across all channels
                 pca_temp = pca_temp.mean(0)
                 Wx_k, scales = cwt(pca_temp, "gmw")
+
+                image = array2image(Wx_k)
+
                 # save to a new array with (batch, features, time)
                 if i == 0:
                     temporary_data = np.zeros(
@@ -476,15 +479,11 @@ class CNN_Transformer_Trainer:
                         ),
                         dtype=np.float32,
                     )
-                    temporary_data[i, :, :] = Wx_k
+                    temporary_data[i, :, :] = image
                 else:
-                    temporary_data[i, :, :] = Wx_k
+                    temporary_data[i, :, :] = image
 
             features = temporary_data
-
-            # Add a rgb channel dimension
-            features = np.expand_dims(features, axis=1)
-            norm = mpl.colors.Normalize(vmin=features.min(), vmax=features.max())
 
             # Turn into torch tensor
             features = torch.tensor(features, device=self.device)

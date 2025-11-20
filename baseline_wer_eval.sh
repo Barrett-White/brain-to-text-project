@@ -1,4 +1,3 @@
-cat << 'EOF' > wer_eval_direct.sh
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH --partition=l40-gpu
@@ -32,7 +31,3 @@ python evaluate_model.py \
     --lm_beta 1.0 \
     --eval_type val \
     --gpu_number 0
-EOF
-
-# Submit the job
-sbatch wer_eval_direct.sh

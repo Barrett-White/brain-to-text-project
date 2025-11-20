@@ -18,17 +18,33 @@ if [ -d "language_model/runtime/server/x86/fc_base" ]; then
     exit 1
 fi
 
+
+if command -v module &> /dev/null; then
+    echo "HPC Environment detected. Loading modules..."
+    module purge
+    module load anaconda
+    module load cmake
+    module load gcc
+fi
+
 # make sure CMake is installed
 if ! command -v cmake &> /dev/null; then
-    echo "CMake is not installed. Please install CMake >= 3.14 before running this script with 'sudo apt-get install cmake'."
+    echo "CMake is not installed. Please install CMake >= 3.14."
     exit 1
 fi
 
 # make sure gcc is installed
 if ! command -v gcc &> /dev/null; then
-    echo "GCC is not installed. Please install GCC >= 10.1 before running this script with 'sudo apt-get install build-essential'."
+    echo "GCC is not installed. Please install GCC >= 10.1 ."
     exit 1
 fi
+
+CONDA_BASE=$(conda info --base 2>/dev/null)
+if [ -z "$CONDA_BASE" ]; then
+    # Fallback for Longleaf if 'conda' isn't in PATH yet
+    CONDA_BASE="/nas/longleaf/rhel9/apps/anaconda/2024.02"
+fi
+source "$CONDA_BASE/etc/profile.d/conda.sh"
 
 # Ensure conda is available
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -67,6 +83,7 @@ cd language_model/runtime/server/x86
 module unload anaconda 2>/dev/null || true
 export CMAKE_PREFIX_PATH="$CONDA_PREFIX"
 export PKG_CONFIG_PATH="$CONDA_PREFIX/lib/pkgconfig"
+export CMAKE_BUILD_PARALLEL_LEVEL=12
 
 python setup.py install
 

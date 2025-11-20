@@ -74,7 +74,8 @@ pip install \
     transformers==4.40.0 \
     tokenizers==0.19.1 \
     accelerate==0.33.0 \
-    bitsandbytes==0.41.1
+    bitsandbytes==0.41.1 \
+    pandas==2.3.0
 
 # cd to the language model directory and install the language model
 cd language_model/runtime/server/x86

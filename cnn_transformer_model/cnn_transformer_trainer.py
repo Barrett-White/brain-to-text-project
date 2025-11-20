@@ -17,8 +17,9 @@ from omegaconf import OmegaConf
 from ssqueezepy import cwt
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from transformers import T5ForConditionalGeneration, T5Tokenizer
 from torchvision import transforms
+from tqdm import tqdm
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 
 from cnn_transformer_model.cnn_transformer_model import CNNTransformer
 from cnn_transformer_model.dataset_transformer import (
@@ -108,18 +109,11 @@ class CNN_Transformer_Trainer:
             random.seed(self.args["seed"])
             torch.manual_seed(self.args["seed"])
 
-        if not self.args["model"]["cnn_information"]["use_pretrained"]:
-            cnn_net = EEGNet(
-                n_chans=self.args["model"]["n_input_features"],
-                n_outputs=self.args["model"]["n_units"],
-                n_times=self.args["dataset"]["temporal_bin"],
-            )
-        else:
-            cnn_net = torch.hub.load(
-                "pytorch/vision:v0.10.0",
-                self.args["model"]["cnn_information"]["pretrained_model_name"],
-                pretrained=True,
-            )
+        eenet = EEGNet(
+            n_chans=self.args["model"]["n_input_features"],
+            n_outputs=self.args["model"]["n_units"],
+            n_times=self.args["dataset"]["temporal_bin"],
+        )
 
         self.tokenizer = T5Tokenizer.from_pretrained(
             self.args["model"]["transformer_name"]
@@ -135,7 +129,7 @@ class CNN_Transformer_Trainer:
             n_classes=self.args["dataset"]["n_classes"],
             rnn_dropout=self.args["model"]["rnn_dropout"],
             input_dropout=self.args["model"]["input_network"]["input_layer_dropout"],
-            cnn_model=cnn_net,
+            eenet_model=eenet,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
         )
@@ -262,10 +256,6 @@ class CNN_Transformer_Trainer:
         for name, param in self.model.named_parameters():
             if "transformer_model" in name:
                 if "lm_head" not in name:
-                    param.requires_grad = False
-            # If we are using a pre-trained cnn, freeze this as well
-            elif self.args["model"]["cnn_information"]["use_pretrained"]:
-                if "cnn" in name:
                     param.requires_grad = False
 
         # Print out frozen info
@@ -466,16 +456,34 @@ class CNN_Transformer_Trainer:
             # mspca function
             # turn features into numpy array
             features = features.cpu().numpy()
-            mymodel = mspca.MultiscalePCA()
-            features = mymodel.fit_transform(
-                features, wavelet_func="db4", threshold=0.3
-            )
+            # we have batches, so we need to loop over the batch dimension
+            for i in tqdm(range(features.shape[0])):
+                mymodel = mspca.MultiscalePCA()
+                pca_temp = mymodel.fit_transform(
+                    features[i, :, :], wavelet_func="db4", threshold=0.3
+                )
+                Wx_k, scales = cwt(pca_temp, "gmw")
+                # save to a new array with (batch, features, time)
+                if i == 0:
+                    temporary_data = np.zeros(
+                        (
+                            features.shape[0],
+                            Wx_k.shape[0],
+                            Wx_k.shape[1],
+                            Wx_k.shape[2],
+                        ),
+                        dtype=np.float32,
+                    )
+                    temporary_data[i, :, :] = Wx_k
+                else:
+                    temporary_data[i, :, :] = Wx_k
 
-            # Use ssqueezepy to do cwt
-            Wx_k, scales = cwt(features, "gmw")
+            features = temporary_data
 
-            # reshape to (batch, time, features)
-            features = Wx_k.permute(0, 2, 1)
+            # This tensor is currently in the wrong dimensions
+            # We have shape of (batch, 1648, 229, 512), and we need the channels to be 3
+            features = torch.tensor(features, device=self.device)
+            features = features.permute(0, 3, 1, 2)
 
             preprocess = transforms.Compose(
                 [
@@ -488,7 +496,6 @@ class CNN_Transformer_Trainer:
                 ]
             )
             features = preprocess(features)
-
         return features, n_time_steps
 
     def train(self):

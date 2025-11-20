@@ -133,6 +133,7 @@ class CNN_Transformer_Trainer:
             cnn_model=eenet,
             transformer_model=self.t5model,
             temporal_bin=self.args["dataset"]["temporal_bin"],
+            pretrained_cnn=self.args["model"]["cnn_information"]["use_pretrained"],
         )
 
         if self.args["use_torch_compile"]:

@@ -24,7 +24,12 @@ PYTHON_EXEC="$ENV_PATH/bin/python"
 source /nas/longleaf/rhel9/apps/anaconda/2024.02/etc/profile.d/conda.sh
 conda activate "$ENV_PATH"
 
+unset PYTHONPATH
+export PYTHONNOUSERSITE=1
+
 echo "Using Python interpreter: $PYTHON_EXEC"
+echo "Verifying Torch..."
+"$PYTHON_EXEC" -c "import torch; print(f'Torch version: {torch.__version__}')" || exit 1
 
 # 3. Run Evaluation
 cd baseline

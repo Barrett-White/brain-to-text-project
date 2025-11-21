@@ -138,7 +138,24 @@ with tqdm(total=total_test_trials, desc='Decoding', unit='trial') as pbar:
                 logits_np = logits_tensor.squeeze(0).float().cpu().numpy()
             else:
                 logits_np = logits_tensor[0]
-
+            
+            # 1. Check for NaNs (Floating point errors)
+            if np.isnan(logits_np).any():
+                print(f"   WARNING: NaNs detected in logits for Trial {trial}!")
+            
+            # 2. Greedy Decode (What does the RNN actually think?)
+            # This picks the highest probability phoneme at each step
+            raw_indices = np.argmax(logits_np, axis=-1)
+            
+            # Simple collapse (remove duplicates and blanks)
+            # Assuming 0 is the blank token
+            simple_pred = []
+            for i, idx in enumerate(raw_indices):
+                if idx != 0 and (i == 0 or idx != raw_indices[i-1]):
+                    simple_pred.append(str(idx))
+            
+            print(f"\n--- DEBUG TRIAL {trial} ---")
+            print(f"Raw Indices: {simple_pred[:20]}...") # Print first 20 steps
             # --- DIRECT C++ API CALL ---
             try:
                 # Reset state for new sentence

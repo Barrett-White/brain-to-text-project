@@ -41,6 +41,7 @@ fi
 
 # 6. Run Evaluation (Using Absolute Paths for Everything)
 echo "Starting evaluation..."
+cd "$PROJECT_ROOT/baseline"
 
 # Note: We run from PROJECT_ROOT/baseline so imports inside the script work, 
 # but we pass absolute paths to the arguments so they never break.

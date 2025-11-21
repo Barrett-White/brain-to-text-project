@@ -22,21 +22,59 @@ parser.add_argument('--csv_path', type=str, default='../data/t15_copyTaskData_de
 parser.add_argument('--gpu_number', type=int, default=0)
 
 # Decoder Arguments
-parser.add_argument('--lm_path', type=str, required=True, help='Directory containing TLG.fst and words.txt')
-parser.add_argument('--lm_alpha', type=float, default=0.55, help='Used for rescoring (not used in baseline beam search).')
-parser.add_argument('--lm_beta', type=float, default=2.0, help='Word Insertion Penalty (Blank Penalty).')
-parser.add_argument('--acoustic_scale', type=float, default=0.325, help='Scaling factor for acoustic logits.')
-parser.add_argument('--beam', type=float, default=17.0, help='Beam width.')
+parser.add_argument('--lm_path', type=str, required=True)
+parser.add_argument('--lm_alpha', type=float, default=0.55)
+parser.add_argument('--lm_beta', type=float, default=2.0)
+parser.add_argument('--acoustic_scale', type=float, default=0.325)
+parser.add_argument('--beam', type=float, default=17.0)
 
 args = parser.parse_args()
+
+# --- THE FIX: LOGIT REORDERING FUNCTION ---
+def get_reorder_indices(python_vocab, tokens_txt_path):
+    """
+    Creates a mapping to shuffle Python logits to match C++ tokens.txt
+    """
+    # 1. Load C++ Map
+    cpp_map = {}
+    with open(tokens_txt_path, 'r') as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                token = parts[0]
+                idx = int(parts[1])
+                cpp_map[token] = idx
+    
+    # 2. Create Reorder List
+    # Size is max index found in C++ map + 1 (usually 58)
+    max_cpp_idx = max(cpp_map.values())
+    reorder_list = [0] * (max_cpp_idx + 1)
+    
+    # 3. Fill the map
+    # Iterate through C++ expectations and find where they are in Python list
+    for token, cpp_idx in cpp_map.items():
+        # Handle Special Cases
+        if token == '<eps>': continue # Not used
+        if token == '<blk>': 
+            py_idx = 0 # Python BLANK
+        elif token == 'SIL':
+            py_idx = 41 # Python Space (' | ')
+        elif token in python_vocab:
+            py_idx = python_vocab.index(token)
+        else:
+            # Disambiguation symbols (#0, #1) or missing tokens get mapped to Blank
+            py_idx = 0 
+            
+        reorder_list[cpp_idx] = py_idx
+        
+    return np.array(reorder_list, dtype=np.int32)
+# ------------------------------------------
 
 # --- SETUP ---
 model_path = args.model_path
 data_dir = args.data_dir
 eval_type = args.eval_type
 device = torch.device(f"cuda:{args.gpu_number}" if torch.cuda.is_available() else "cpu")
-
-print(f"Using device: {device}")
 
 # Load Metadata
 b2txt_csv_df = pd.read_csv(args.csv_path)
@@ -74,9 +112,8 @@ for session in model_args['dataset']['sessions']:
         test_data[session] = data
         total_test_trials += len(test_data[session]["neural_features"])
 
-print(f'Total trials: {total_test_trials}')
-
-# --- STEP 1: INFERENCE (Get Logits) ---
+# --- STEP 1: INFERENCE ---
+print("\n--- STARTING INFERENCE ---")
 with tqdm(total=total_test_trials, desc='Running Inference', unit='trial') as pbar:
     for session, data in test_data.items():
         data['logits'] = []
@@ -85,98 +122,80 @@ with tqdm(total=total_test_trials, desc='Running Inference', unit='trial') as pb
         for trial in range(len(data['neural_features'])):
             neural_input = data['neural_features'][trial]
             neural_input = np.expand_dims(neural_input, axis=0)
-            neural_input = torch.tensor(neural_input, device=device, dtype=torch.float16) # Changed to float16 for Volta compatibility
+            neural_input = torch.tensor(neural_input, device=device, dtype=torch.float32) # float32 for V100
 
             logits = runSingleDecodingStep(neural_input, input_layer, model, model_args, device)
             data['logits'].append(logits)
             pbar.update(1)
 
-# --- STEP 2: DECODING (Using raw C++ API) ---
+# --- STEP 2: DECODING ---
 print("\nInitializing C++ Decoder...")
 
-# 1. Define Paths
 TLG_path = os.path.join(args.lm_path, 'TLG.fst')
 words_path = os.path.join(args.lm_path, 'words.txt')
+tokens_path = os.path.join(args.lm_path, 'tokens.txt') # Needed for mapping
 
-if not os.path.exists(TLG_path):
-    raise ValueError(f"TLG.fst not found at {TLG_path}")
+# Build the Reordering Map
+print("Building Logit Reorder Map...")
+reorder_indices = get_reorder_indices(LOGIT_TO_PHONEME, tokens_path)
 
-# 2. Configure Options
+# Initialize Decoder
 decode_opts = lm_decoder.DecodeOptions(
-    7000,   # max_active
-    200,    # min_active
-    args.beam, 
-    8.0,    # lattice_beam
-    args.acoustic_scale, 
-    1.0,    # ctc_blank_skip_threshold
-    0.0,    # length_penalty
-    1       # nbest
+    7000, 200, args.beam, 8.0, args.acoustic_scale, 1.0, 0.0, 1
 )
-
-# 3. Load Resources
-decode_resource = lm_decoder.DecodeResource(
-    TLG_path,
-    "", # G_path (unused for basic decoding)
-    "", # rescore_G_path (unused)
-    words_path,
-    ""  # vocab_path (unused)
-)
-
-# 4. Instantiate the Engine
+decode_resource = lm_decoder.DecodeResource(TLG_path, "", "", words_path, "")
 decoder = lm_decoder.BrainSpeechDecoder(decode_resource, decode_opts)
-print("Decoder Ready.")
 
 lm_results = {'session': [], 'block': [], 'trial': [], 'true_sentence': [], 'pred_sentence': []}
 
-print("Running Beam Search Decoding...")
+print("Running Decoding...")
 with tqdm(total=total_test_trials, desc='Decoding', unit='trial') as pbar:
     for session in test_data.keys():
         for trial in range(len(test_data[session]['logits'])):
             
+            # Prepare Logits
             logits_tensor = test_data[session]['logits'][trial]
             if torch.is_tensor(logits_tensor):
                 logits_np = logits_tensor.squeeze(0).float().cpu().numpy()
             else:
                 logits_np = logits_tensor[0]
-            
-            # 1. Check for NaNs (Floating point errors)
-            if np.isnan(logits_np).any():
-                print(f"   WARNING: NaNs detected in logits for Trial {trial}!")
-            
-            # 2. Greedy Decode (What does the RNN actually think?)
-            # This picks the highest probability phoneme at each step
-            raw_indices = np.argmax(logits_np, axis=-1)
-            
-            # Simple collapse (remove duplicates and blanks)
-            # Assuming 0 is the blank token
-            simple_pred = []
-            for i, idx in enumerate(raw_indices):
-                if idx != 0 and (i == 0 or idx != raw_indices[i-1]):
-                    simple_pred.append(str(idx))
-            
-            print(f"\n--- DEBUG TRIAL {trial} ---")
-            print(f"Raw Indices: {simple_pred[:20]}...") # Print first 20 steps
-            # --- DIRECT C++ API CALL ---
+
+            # --- APPLY REORDERING ---
+            # This shuffles the columns to match what C++ expects
+            # New_Logits[:, C++_Index] = Old_Logits[:, Python_Index]
+            # We must pad logits if C++ expects more tokens (e.g. disambiguation symbols)
+            T, C = logits_np.shape
+            if len(reorder_indices) > C:
+                # Pad with -inf (impossible probability)
+                pad_width = len(reorder_indices) - C
+                # Create a larger array filled with very low probability
+                padded_logits = np.full((T, len(reorder_indices)), -10000.0, dtype=np.float32)
+                # Map the known logits into their new positions
+                # We can't do simple indexing because reorder_indices maps Target -> Source
+                # and some targets (like #0) map to Source 0 (Blank), which is wrong.
+                # So we do it explicitly for valid tokens:
+                
+                # Faster numpy way:
+                # reorder_indices[j] tells us which column from logits_np goes to column j in new array
+                valid_indices = reorder_indices < C
+                padded_logits[:, valid_indices] = logits_np[:, reorder_indices[valid_indices]]
+                logits_ready = padded_logits
+            else:
+                logits_ready = logits_np[:, reorder_indices]
+            # ------------------------
+
             try:
-                # Reset state for new sentence
                 decoder.Reset()
-                
-                # Feed data (Note: np.log(beta) acts as the insertion penalty in this API)
-                lm_decoder.DecodeNumpy(decoder, logits_np, np.zeros_like(logits_np), np.log(args.lm_beta))
-                
-                # Finalize
+                lm_decoder.DecodeNumpy(decoder, logits_ready, np.zeros_like(logits_ready), np.log(args.lm_beta))
                 decoder.FinishDecoding()
                 
-                # Extract result
                 if len(decoder.result()) > 0:
                     decoded_text = decoder.result()[0].sentence
                 else:
                     decoded_text = ""
-                    
             except Exception as e:
-                print(f"Decoding error: {e}")
+                print(f"Error: {e}")
                 decoded_text = ""
-            # ---------------------------
 
             lm_results['session'].append(session)
             lm_results['block'].append(test_data[session]['block_num'][trial])
@@ -190,7 +209,7 @@ with tqdm(total=total_test_trials, desc='Decoding', unit='trial') as pbar:
             lm_results['pred_sentence'].append(decoded_text)
             pbar.update(1)
 
-# --- STEP 3: CALCULATE WER ---
+# --- STEP 3: WER ---
 if eval_type == 'val':
     total_true_length = 0
     total_edit_distance = 0
@@ -204,20 +223,15 @@ if eval_type == 'val':
         total_edit_distance += ed
 
         print(f'{lm_results["session"][i]} - Trial {lm_results["trial"][i]}')
-        print(f'True:      {true_sentence}')
-        print(f'Pred:      {pred_sentence}')
-        denom = len(true_sentence.split())
-        wer = ed / denom if denom > 0 else 0.0
-        print(f'WER: {wer:.2f}')
+        print(f'True: {true_sentence}')
+        print(f'Pred: {pred_sentence}')
+        print(f'WER: {ed / len(true_sentence.split()):.2f}' if len(true_sentence.split()) > 0 else 'N/A')
         print()
 
-    print(f'Total Edit Distance: {total_edit_distance}')
-    print(f'Total Words: {total_true_length}')
     if total_true_length > 0:
         print(f'Aggregate WER: {100 * total_edit_distance / total_true_length:.2f}%')
 
-# Save CSV
 output_file = os.path.join(model_path, f'baseline_rnn_{eval_type}_predicted_sentences_{time.strftime("%Y%m%d_%H%M%S")}.csv')
 df_out = pd.DataFrame({'id': range(len(lm_results['pred_sentence'])), 'text': lm_results['pred_sentence']})
 df_out.to_csv(output_file, index=False)
-print(f"Saved results to {output_file}")
+print(f"Saved to {output_file}")

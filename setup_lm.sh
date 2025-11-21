@@ -43,12 +43,17 @@ CONDA_BASE=$(conda info --base 2>/dev/null || echo "/nas/longleaf/rhel9/apps/ana
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 
 # 5. CREATE ENVIRONMENT
-echo "Creating Conda Environment (b2txt25_lm)..."
-conda create --prefix ./b2txt25_lm python=3.9 -y
+if [ -d "b2txt25_lm" ]; then
+    echo "Environment b2txt25_lm already exists. Updating..."
+else
+    echo "Creating Conda Environment (b2txt25_lm)..."
+    conda create --prefix ./b2txt25_lm python=3.9 -y
+fi
 
 # 6. DEPENDENCY INSTALLATION
 # We define the Explicit Python Executable to bypass activation issues
-PYTHON_EXEC="$(pwd)/b2txt25_lm/bin/python"
+PROJECT_ROOT=$(pwd)
+PYTHON_EXEC="$PROJECT_ROOT/b2txt25_lm/bin/python"
 
 # ISOLATION: Prevent pip from seeing your home directory (~/.local)
 export PYTHONNOUSERSITE=1
@@ -58,26 +63,31 @@ echo "Installing Golden Dependency List..."
 "$PYTHON_EXEC" -m pip install --upgrade pip
 
 # Install Exact Versions (Fixes Numpy 2.0 / Torch 1.13 / CUDA 11 conflicts)
-"$PYTHON_EXEC" -m pip install \
-    torch==1.13.1 \
-    nvidia-cublas-cu11==11.10.3.66 \
-    nvidia-cuda-runtime-cu11==11.7.99 \
-    typing_extensions==4.10.0 \
-    numpy==1.26.4 \
-    pandas==2.2.2 \
-    redis==5.0.6 \
-    jupyter==1.1.1 \
-    matplotlib==3.9.0 \
-    scipy==1.11.1 \
-    scikit-learn==1.6.1 \
-    tqdm==4.66.4 \
-    g2p_en==2.1.0 \
-    omegaconf==2.3.0 \
-    huggingface-hub==0.23.4 \
-    transformers==4.40.0 \
-    tokenizers==0.19.1 \
-    accelerate==0.33.0 \
-    bitsandbytes==0.41.1
+# We use --no-cache-dir to ensure fresh binaries and --force-reinstall to overwrite anything weird
+"$PYTHON_EXEC" -m pip install --force-reinstall --no-cache-dir \
+    "torch==1.13.1" \
+    "nvidia-cublas-cu11==11.10.3.66" \
+    "nvidia-cuda-runtime-cu11==11.7.99" \
+    "typing_extensions==4.10.0" \
+    "numpy==1.26.4" \
+    "pandas==2.2.2" \
+    "h5py==3.13.0" \
+    "scikit-learn==1.6.1" \
+    "scipy==1.11.1" \
+    "redis==5.0.6" \
+    "jupyter==1.1.1" \
+    "matplotlib==3.9.0" \
+    "tqdm==4.66.4" \
+    "g2p_en==2.1.0" \
+    "omegaconf==2.3.0" \
+    "huggingface-hub==0.23.4" \
+    "transformers==4.40.0" \
+    "tokenizers==0.19.1" \
+    "accelerate==0.33.0" \
+    "bitsandbytes==0.41.1" \
+    "editdistance" \
+    "pytz" \
+    "six"
 
 # 7. COMPILE DECODER
 echo "Compiling Decoder..."
@@ -88,16 +98,21 @@ if command -v module &> /dev/null; then
     module unload anaconda
 fi
 
-# Point CMake to our isolated environment
-export CMAKE_PREFIX_PATH="$(pwd)/../../../../b2txt25_lm"
-export PKG_CONFIG_PATH="$(pwd)/../../../../b2txt25_lm/lib/pkgconfig"
+# Point CMake to our isolated environment using ABSOLUTE PATHS
+export CMAKE_PREFIX_PATH="$PROJECT_ROOT/b2txt25_lm"
+export PKG_CONFIG_PATH="$PROJECT_ROOT/b2txt25_lm/lib/pkgconfig"
 export CMAKE_BUILD_PARALLEL_LEVEL=12
 
 # Run setup using our explicit python
 "$PYTHON_EXEC" setup.py install
 
-# 8. FINISH
-cd ../../../..
+# 8. VERIFICATION & FINISH
+cd "$PROJECT_ROOT"
+
+echo "Verifying Installation..."
+"$PYTHON_EXEC" -c "import torch; print(f' Torch: {torch.__version__}')"
+"$PYTHON_EXEC" -c "import numpy; print(f' Numpy: {numpy.__version__}')"
+"$PYTHON_EXEC" -c "import lm_decoder; print(' lm_decoder: Loaded Successfully')"
 
 echo
 echo "Setup complete!"

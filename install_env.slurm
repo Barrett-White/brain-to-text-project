@@ -1,4 +1,3 @@
-cat << 'EOF' > install_env.slurm
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH --job-name=install_b2txt
@@ -17,6 +16,3 @@ chmod +x setup_lm.sh
 # setup_lm.sh handles module loading, conda creation, and compiling internally.
 ./setup_lm.sh
 
-EOF
-
-sbatch install_env.slurm

@@ -49,3 +49,14 @@
 ## Load Data
 
 Navigate to the [NEJM Data Github](https://github.com/Neuroprosthetics-Lab/nejm-brain-to-text/tree/main/data) to find instructions for downloading the correct dataset.
+
+
+
+```bash
+sbatch -p volta-gpu baseline_wer_eval.sh
+
+# If using volta-gpu
+cd /work/users/s/j/sjshen/brain-to-text-project
+# Patch both the main script and the helper script
+sed -i 's/bfloat16/float16/g' baseline/evaluate_model.py baseline/evaluate_model_helpers.py
+```

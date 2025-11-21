@@ -7,62 +7,42 @@ import time
 from tqdm import tqdm
 import editdistance
 import argparse
+
+# Import the compiled C++ extension
 import lm_decoder
 
 from rnn_model import GRUDecoder
 from evaluate_model_helpers import *
 
-# argument parser for command line arguments
-parser = argparse.ArgumentParser(description='Evaluate a pretrained RNN model on the copy task dataset.')
-parser.add_argument('--model_path', type=str, default='../data/t15_pretrained_rnn_baseline',
-                    help='Path to the pretrained model directory (relative to the current working directory).')
-parser.add_argument('--data_dir', type=str, default='../data/hdf5_data_final',
-                    help='Path to the dataset directory (relative to the current working directory).')
-parser.add_argument('--eval_type', type=str, default='test', choices=['val', 'test'],
-                    help='Evaluation type: "val" for validation set, "test" for test set. '
-                         'If "test", ground truth is not available.')
-parser.add_argument('--csv_path', type=str, default='../data/t15_copyTaskData_description.csv',
-                    help='Path to the CSV file with metadata about the dataset (relative to the current working directory).')
-parser.add_argument('--gpu_number', type=int, default=1,
-                    help='GPU number to use for RNN model inference. Set to -1 to use CPU.')
+parser = argparse.ArgumentParser(description='Evaluate a pretrained RNN model.')
+parser.add_argument('--model_path', type=str, required=True)
+parser.add_argument('--data_dir', type=str, required=True)
+parser.add_argument('--eval_type', type=str, default='test', choices=['val', 'test'])
+parser.add_argument('--csv_path', type=str, default='../data/t15_copyTaskData_description.csv')
+parser.add_argument('--gpu_number', type=int, default=0)
 
-# --- NEW DECODER ARGUMENTS ---
-parser.add_argument('--lm_path', type=str, default='../language_model/pretrained_language_models/3gram.model',
-                    help='Path to the KenLM n-gram model file.')
-parser.add_argument('--lm_alpha', type=float, default=1.5,
-                    help='Language Model weight (Alpha).')
-parser.add_argument('--lm_beta', type=float, default=2.0,
-                    help='Word Insertion Penalty (Beta).')
-# -----------------------------
+# Decoder Arguments
+parser.add_argument('--lm_path', type=str, required=True, help='Directory containing TLG.fst and words.txt')
+parser.add_argument('--lm_alpha', type=float, default=0.55, help='Used for rescoring (not used in baseline beam search).')
+parser.add_argument('--lm_beta', type=float, default=2.0, help='Word Insertion Penalty (Blank Penalty).')
+parser.add_argument('--acoustic_scale', type=float, default=0.325, help='Scaling factor for acoustic logits.')
+parser.add_argument('--beam', type=float, default=17.0, help='Beam width.')
 
 args = parser.parse_args()
 
-# paths to model and data directories
+# --- SETUP ---
 model_path = args.model_path
 data_dir = args.data_dir
-eval_type = args.eval_type  
+eval_type = args.eval_type
+device = torch.device(f"cuda:{args.gpu_number}" if torch.cuda.is_available() else "cpu")
 
-# load csv file
+print(f"Using device: {device}")
+
+# Load Metadata
 b2txt_csv_df = pd.read_csv(args.csv_path)
-
-# load model args
 model_args = OmegaConf.load(os.path.join(model_path, 'checkpoint/args.yaml'))
 
-# set up gpu device
-gpu_number = args.gpu_number
-if torch.cuda.is_available() and gpu_number >= 0:
-    if gpu_number >= torch.cuda.device_count():
-        raise ValueError(f'GPU number {gpu_number} is out of range. Available GPUs: {torch.cuda.device_count()}')
-    device = f'cuda:{gpu_number}'
-    device = torch.device(device)
-    print(f'Using {device} for model inference.')
-else:
-    if gpu_number >= 0:
-        print(f'GPU number {gpu_number} requested but not available.')
-    print('Using CPU for model inference.')
-    device = torch.device('cpu')
-
-# define model
+# Load Model
 model = GRUDecoder(
     neural_dim = model_args['model']['n_input_features'],
     n_units = model_args['model']['n_units'], 
@@ -75,116 +55,112 @@ model = GRUDecoder(
     patch_stride = model_args['model']['patch_stride'],
 )
 
-# load model weights
 checkpoint = torch.load(os.path.join(model_path, 'checkpoint/best_checkpoint'), map_location=device, weights_only=False)
 for key in list(checkpoint['model_state_dict'].keys()):
     checkpoint['model_state_dict'][key.replace("module.", "")] = checkpoint['model_state_dict'].pop(key)
     checkpoint['model_state_dict'][key.replace("_orig_mod.", "")] = checkpoint['model_state_dict'].pop(key)
 model.load_state_dict(checkpoint['model_state_dict'])  
-
-# add model to device
-model.to(device) 
+model.to(device)
 model.eval()
 
-# load data for each session
+# Load Data
 test_data = {}
 total_test_trials = 0
 for session in model_args['dataset']['sessions']:
     files = [f for f in os.listdir(os.path.join(data_dir, session)) if f.endswith('.hdf5')]
     if f'data_{eval_type}.hdf5' in files:
         eval_file = os.path.join(data_dir, session, f'data_{eval_type}.hdf5')
-
         data = load_h5py_file(eval_file, b2txt_csv_df)
         test_data[session] = data
-
         total_test_trials += len(test_data[session]["neural_features"])
-        print(f'Loaded {len(test_data[session]["neural_features"])} {eval_type} trials for session {session}.')
-print(f'Total number of {eval_type} trials: {total_test_trials}')
-print()
 
+print(f'Total trials: {total_test_trials}')
 
-# ---------------------------------------------------------
-# STEP 1: RNN INFERENCE (Generate Acoustic Logits)
-# ---------------------------------------------------------
-with tqdm(total=total_test_trials, desc='Predicting phoneme sequences', unit='trial') as pbar:
+# --- STEP 1: INFERENCE (Get Logits) ---
+with tqdm(total=total_test_trials, desc='Running Inference', unit='trial') as pbar:
     for session, data in test_data.items():
-
         data['logits'] = []
-        data['pred_seq'] = []
         input_layer = model_args['dataset']['sessions'].index(session)
         
         for trial in range(len(data['neural_features'])):
-            # get neural input for the trial
             neural_input = data['neural_features'][trial]
-
-            # add batch dimension
             neural_input = np.expand_dims(neural_input, axis=0)
+            neural_input = torch.tensor(neural_input, device=device, dtype=torch.float16) # Changed to float16 for Volta compatibility
 
-            # convert to torch tensor
-            neural_input = torch.tensor(neural_input, device=device, dtype=torch.bfloat16)
-
-            # run decoding step
             logits = runSingleDecodingStep(neural_input, input_layer, model, model_args, device)
             data['logits'].append(logits)
-
             pbar.update(1)
-pbar.close()
 
+# --- STEP 2: DECODING (Using raw C++ API) ---
+print("\nInitializing C++ Decoder...")
 
-# ---------------------------------------------------------
-# STEP 2: LANGUAGE MODEL DECODING (Local C++ Decoder)
-# ---------------------------------------------------------
-print("\nInitializing C++ LM Decoder...")
+# 1. Define Paths
+TLG_path = os.path.join(args.lm_path, 'TLG.fst')
+words_path = os.path.join(args.lm_path, 'words.txt')
 
-# Prepare Vocabulary List
-# LOGIT_TO_PHONEME is a dictionary {index: 'phoneme'}.
-# The decoder typically expects a list where list[i] is the label for index i.
-vocab_list = [LOGIT_TO_PHONEME[i] for i in range(len(LOGIT_TO_PHONEME))]
+if not os.path.exists(TLG_path):
+    raise ValueError(f"TLG.fst not found at {TLG_path}")
 
-# Initialize the Scorer
-# Note: We assume the C++ API handles (alpha, beta, model_path, vocabulary)
-scorer = lm_decoder.Scorer(
-    args.lm_alpha, 
-    args.lm_beta, 
-    args.lm_path, 
-    vocab_list
+# 2. Configure Options
+decode_opts = lm_decoder.DecodeOptions(
+    7000,   # max_active
+    200,    # min_active
+    args.beam, 
+    8.0,    # lattice_beam
+    args.acoustic_scale, 
+    1.0,    # ctc_blank_skip_threshold
+    0.0,    # length_penalty
+    1       # nbest
 )
 
-print(f"Decoder initialized with Alpha={args.lm_alpha}, Beta={args.lm_beta}")
+# 3. Load Resources
+decode_resource = lm_decoder.DecodeResource(
+    TLG_path,
+    "", # G_path (unused for basic decoding)
+    "", # rescore_G_path (unused)
+    words_path,
+    ""  # vocab_path (unused)
+)
 
-lm_results = {
-    'session': [],
-    'block': [],
-    'trial': [],
-    'true_sentence': [],
-    'pred_sentence': [],
-}
+# 4. Instantiate the Engine
+decoder = lm_decoder.BrainSpeechDecoder(decode_resource, decode_opts)
+print("Decoder Ready.")
+
+lm_results = {'session': [], 'block': [], 'trial': [], 'true_sentence': [], 'pred_sentence': []}
 
 print("Running Beam Search Decoding...")
-with tqdm(total=total_test_trials, desc='Decoding with LM', unit='trial') as pbar:
+with tqdm(total=total_test_trials, desc='Decoding', unit='trial') as pbar:
     for session in test_data.keys():
         for trial in range(len(test_data[session]['logits'])):
             
-            # Get logits for this trial
-            # data['logits'][trial] is a tensor of shape [1, Time, Classes]
-            # We need a numpy array of shape [Time, Classes]
             logits_tensor = test_data[session]['logits'][trial]
-            
-            # Ensure it's on CPU and convert to numpy
             if torch.is_tensor(logits_tensor):
                 logits_np = logits_tensor.squeeze(0).float().cpu().numpy()
             else:
                 logits_np = logits_tensor[0]
 
-            # --- DIRECT DECODE ---
+            # --- DIRECT C++ API CALL ---
             try:
-                decoded_text = scorer.decode(logits_np)
+                # Reset state for new sentence
+                decoder.Reset()
+                
+                # Feed data (Note: np.log(beta) acts as the insertion penalty in this API)
+                lm_decoder.DecodeNumpy(decoder, logits_np, np.zeros_like(logits_np), np.log(args.lm_beta))
+                
+                # Finalize
+                decoder.FinishDecoding()
+                
+                # Extract result
+                if len(decoder.result()) > 0:
+                    decoded_text = decoder.result()[0].sentence
+                else:
+                    decoded_text = ""
+                    
             except Exception as e:
-                print(f"Decoding error on {session} trial {trial}: {e}")
+                print(f"Decoding error: {e}")
                 decoded_text = ""
-            # ---------------------
+            # ---------------------------
 
-            # store results
             lm_results['session'].append(session)
             lm_results['block'].append(test_data[session]['block_num'][trial])
             lm_results['trial'].append(test_data[session]['trial_num'][trial])
@@ -195,21 +171,12 @@ with tqdm(total=total_test_trials, desc='Decoding with LM', unit='trial') as pba
                 lm_results['true_sentence'].append(None)
                 
             lm_results['pred_sentence'].append(decoded_text)
-
-            # update progress bar
             pbar.update(1)
-pbar.close()
 
-
-# ---------------------------------------------------------
-# STEP 3: WER CALCULATION & OUTPUT
-# ---------------------------------------------------------
+# --- STEP 3: CALCULATE WER ---
 if eval_type == 'val':
     total_true_length = 0
     total_edit_distance = 0
-
-    lm_results['edit_distance'] = []
-    lm_results['num_words'] = []
 
     for i in range(len(lm_results['pred_sentence'])):
         true_sentence = remove_punctuation(lm_results['true_sentence'][i] or "").strip()
@@ -219,31 +186,21 @@ if eval_type == 'val':
         total_true_length += len(true_sentence.split())
         total_edit_distance += ed
 
-        lm_results['edit_distance'].append(ed)
-        lm_results['num_words'].append(len(true_sentence.split()))
-
-        print(f'{lm_results["session"][i]} - Block {lm_results["block"][i]}, Trial {lm_results["trial"][i]}')
-        print(f'True sentence:       {true_sentence}')
-        print(f'Predicted sentence:  {pred_sentence}')
-        # Handle zero-length sentences to avoid division by zero
+        print(f'{lm_results["session"][i]} - Trial {lm_results["trial"][i]}')
+        print(f'True:      {true_sentence}')
+        print(f'Pred:      {pred_sentence}')
         denom = len(true_sentence.split())
-        if denom > 0:
-            print(f'WER: {ed} / {denom} = {ed / denom:.2f}')
-        else:
-            print(f'WER: {ed} / 0 = N/A')
+        wer = ed / denom if denom > 0 else 0.0
+        print(f'WER: {wer:.2f}')
         print()
 
-    print(f'Total true sentence length: {total_true_length}')
-    print(f'Total edit distance: {total_edit_distance}')
+    print(f'Total Edit Distance: {total_edit_distance}')
+    print(f'Total Words: {total_true_length}')
     if total_true_length > 0:
-        print(f'Aggregate Word Error Rate (WER): {100 * total_edit_distance / total_true_length:.2f}%')
-    else:
-        print('Aggregate WER: N/A (Total true length is 0)')
+        print(f'Aggregate WER: {100 * total_edit_distance / total_true_length:.2f}%')
 
-
-# write predicted sentences to a csv file. put a timestamp in the filename (YYYYMMDD_HHMMSS)
+# Save CSV
 output_file = os.path.join(model_path, f'baseline_rnn_{eval_type}_predicted_sentences_{time.strftime("%Y%m%d_%H%M%S")}.csv')
-ids = [i for i in range(len(lm_results['pred_sentence']))]
-df_out = pd.DataFrame({'id': ids, 'text': lm_results['pred_sentence']})
+df_out = pd.DataFrame({'id': range(len(lm_results['pred_sentence'])), 'text': lm_results['pred_sentence']})
 df_out.to_csv(output_file, index=False)
-print(f"Results saved to {output_file}")
+print(f"Saved results to {output_file}")

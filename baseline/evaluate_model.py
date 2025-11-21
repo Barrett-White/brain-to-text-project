@@ -158,7 +158,29 @@ with tqdm(total=total_test_trials, desc='Decoding', unit='trial') as pbar:
                 logits_np = logits_tensor.squeeze(0).float().cpu().numpy()
             else:
                 logits_np = logits_tensor[0]
-
+            if trial < 5: # Only check the first 5 trials to avoid log spam
+                print(f"\n[DEBUG] Session {session} Trial {trial}")
+                
+                # 1. Get the "Greedy" path (Best phoneme at each step)
+                raw_indices = np.argmax(logits_np, axis=-1)
+                
+                # 2. Convert indices to readable Phonemes (using your Python list)
+                # We also perform simple "CTC Collapse" (remove duplicates and blanks)
+                decoded_phonemes = []
+                for i, idx in enumerate(raw_indices):
+                    if idx != 0: # Assuming 0 is Blank
+                        # Only add if different from previous (Step-wise collapse)
+                        if i == 0 or idx != raw_indices[i-1]:
+                            # Safety check to ensure index is valid
+                            if idx < len(LOGIT_TO_PHONEME):
+                                decoded_phonemes.append(LOGIT_TO_PHONEME[idx])
+                
+                # 3. Print comparison
+                true_text = test_data[session]['sentence_label'][trial] if eval_type == 'val' else "???"
+                print(f"   TRUE TEXT:   {true_text}")
+                print(f"   RNN HEARD:   {' '.join(decoded_phonemes)}")
+                print("   (If RNN HEARD looks like random letters, the Model is untrained.)")
+                print("   (If RNN HEARD looks like phonetic English, the Decoder Mapping is wrong.)")
             # --- APPLY REORDERING ---
             # This shuffles the columns to match what C++ expects
             # New_Logits[:, C++_Index] = Old_Logits[:, Python_Index]

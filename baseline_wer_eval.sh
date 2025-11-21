@@ -45,7 +45,8 @@ cd "$PROJECT_ROOT/baseline"
     --model_path "$PROJECT_ROOT/baseline/trained_models/baseline_rnn" \
     --data_dir "$PROJECT_ROOT/data/hdf5_data_final" \
     --lm_path "$PROJECT_ROOT/language_model/pretrained_language_models/languageModel" \
-    --lm_alpha 0.55 \
-    --lm_beta 2.0 \
+    --lm_alpha 0.2 \
+    --lm_beta 1.5 \
+    --acoustic_scale 1.0 \
     --eval_type val \
     --gpu_number 0

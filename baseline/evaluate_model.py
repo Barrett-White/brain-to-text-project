@@ -23,14 +23,13 @@ parser.add_argument('--gpu_number', type=int, default=0)
 
 # Decoder Arguments
 parser.add_argument('--lm_path', type=str, required=True)
-parser.add_argument('--lm_alpha', type=float, default=0.55)
+parser.add_argument('--lm_alpha', type=float, default=0.2)
 parser.add_argument('--lm_beta', type=float, default=2.0)
-parser.add_argument('--acoustic_scale', type=float, default=0.325)
+parser.add_argument('--acoustic_scale', type=float, default=0.8)
 parser.add_argument('--beam', type=float, default=17.0)
 
 args = parser.parse_args()
 
-# --- THE FIX: LOGIT REORDERING FUNCTION ---
 def get_reorder_indices(python_vocab, tokens_txt_path):
     """
     Creates a mapping to shuffle Python logits to match C++ tokens.txt

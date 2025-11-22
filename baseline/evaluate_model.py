@@ -39,9 +39,12 @@ def load_h5py_file(file_path, b2txt_csv_df):
             data['trial_num'].append(g.attrs['trial_num'])
     return data
 
-def runSingleDecodingStep(x, model, device):
+def runSingleDecodingStep(x, input_layer, model, device):
+    # FIX: Pass the day_idx as a Tensor so the model knows which session weights to use
+    day_idx_tensor = torch.tensor([input_layer], device=device)
+    
     with torch.no_grad():
-        logits, _ = model(x=x, day_idx=None, states=None, return_state=True)
+        logits, _ = model(x=x, day_idx=day_idx_tensor, states=None, return_state=True)
     return logits.float().cpu().numpy()
 
 # --- MAIN SCRIPT ---
@@ -97,19 +100,21 @@ for session in model_args['dataset']['sessions']:
     print(f"Processing Session: {session}")
     data = load_h5py_file(os.path.join(args.data_dir, session, f'data_{args.eval_type}.hdf5'), b2txt_csv_df)
     
+    # Calculate input layer index once per session
+    input_layer = model_args['dataset']['sessions'].index(session)
+    
     for trial in tqdm(range(len(data['neural_features']))):
         neural_input = torch.tensor(data['neural_features'][trial], device=device, dtype=torch.float32).unsqueeze(0)
         
-        # 1. Inference
-        logits_raw = runSingleDecodingStep(neural_input, model, device)
+        # 1. Inference (Now passing input_layer correctly)
+        logits_raw = runSingleDecodingStep(neural_input, input_layer, model, device)
         
-        # 2. Reorder (Fixes the Index Mismatch)
+        # 2. Reorder
         logits_reordered = rearrange_speech_logits_pt(logits_raw)[0]
 
         # 3. Decode
         try:
             decoder.Reset()
-            # Logits are RAW. C++ handles log_softmax. Beta is passed as log(beta).
             lm_decoder.DecodeNumpy(decoder, logits_reordered, np.zeros_like(logits_reordered), np.log(args.lm_beta))
             decoder.FinishDecoding()
             res = decoder.result()
@@ -131,6 +136,6 @@ for t, p in zip(lm_results['true'], lm_results['pred']):
     total_dist += editdistance.eval(t_cl.split(), p_cl.split())
     total_words += len(t_cl.split())
 
-print(f"\nAggregate WER: {100 * total_dist / total_words:.2f}%")
+print(f"\nAggregate WER: {100 * total_dist / total_words:.2f}%" if total_words > 0 else "N/A")
 df = pd.DataFrame(lm_results)
 df.to_csv(os.path.join(args.model_path, f'results_{args.eval_type}.csv'), index=False)

@@ -73,10 +73,10 @@ def main():
     args["dataset"]["dataset_dir"] = os.path.join(project_root, "data", "hdf5_data_final")
     
     # --- STAGE 2 SETTINGS: UNFREEZE & LOW LR ---
-    args["lr_max"] = 0.00001      # 1e-5 (Very low to protect knowledge)
-    args["lr_min"] = 0.000001     # 1e-6
-    args["lr_max_day"] = 0.00001  # Keep input layer aligned
-    args["lr_min_day"] = 0.000001
+    args["lr_max"] = 0.00005      # 1e-5 (Very low to protect knowledge)
+    args["lr_min"] = 0.000005     # 1e-6
+    args["lr_max_day"] = 0.00005  # Keep input layer aligned
+    args["lr_min_day"] = 0.000005
     # -------------------------------------------
 
     if DRY_RUN:
@@ -96,7 +96,7 @@ def main():
         finetune_path = os.path.join(script_dir, "trained_models", "finetuned_rnn_unfrozen")
         args["output_dir"] = finetune_path
         args["checkpoint_dir"] = os.path.join(finetune_path, "checkpoint")
-        args["num_training_batches"] = 5000  # Short run (5k batches) is usually enough for unfreezing
+        args["num_training_batches"] = 10000
 
     args["init_from_checkpoint"] = False 
     args["save_best_checkpoint"] = True

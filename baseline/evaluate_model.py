@@ -8,6 +8,7 @@ from tqdm import tqdm
 import editdistance
 import argparse
 import lm_decoder
+import re  # <--- FIXED: Added missing import
 from rnn_model import GRUDecoder
 
 # --- HELPER FUNCTIONS ---
@@ -23,6 +24,7 @@ def rearrange_speech_logits_pt(logits):
     return np.concatenate((logits[:, :, 0:1], logits[:, :, -1:], logits[:, :, 1:-1]), axis=-1)
 
 def remove_punctuation(sentence):
+    # Normalize string: remove punctuation, lowercase, single spaces
     sentence = re.sub(r'[^a-zA-Z\- \']', '', sentence)
     sentence = sentence.replace('- ', ' ').lower().replace('--', '').replace(" '", "'").strip()
     return ' '.join(sentence.split())
@@ -40,9 +42,8 @@ def load_h5py_file(file_path, b2txt_csv_df):
     return data
 
 def runSingleDecodingStep(x, input_layer, model, device):
-    # FIX: Pass the day_idx as a Tensor so the model knows which session weights to use
+    # Pass session index as a tensor so the RNN selects the right day-weights
     day_idx_tensor = torch.tensor([input_layer], device=device)
-    
     with torch.no_grad():
         logits, _ = model(x=x, day_idx=day_idx_tensor, states=None, return_state=True)
     return logits.float().cpu().numpy()
@@ -100,21 +101,21 @@ for session in model_args['dataset']['sessions']:
     print(f"Processing Session: {session}")
     data = load_h5py_file(os.path.join(args.data_dir, session, f'data_{args.eval_type}.hdf5'), b2txt_csv_df)
     
-    # Calculate input layer index once per session
     input_layer = model_args['dataset']['sessions'].index(session)
     
     for trial in tqdm(range(len(data['neural_features']))):
         neural_input = torch.tensor(data['neural_features'][trial], device=device, dtype=torch.float32).unsqueeze(0)
         
-        # 1. Inference (Now passing input_layer correctly)
+        # 1. Inference
         logits_raw = runSingleDecodingStep(neural_input, input_layer, model, device)
         
-        # 2. Reorder
+        # 2. Reorder (Mapping Fix)
         logits_reordered = rearrange_speech_logits_pt(logits_raw)[0]
 
         # 3. Decode
         try:
             decoder.Reset()
+            # Send Raw Logits to C++ (No Python Softmax)
             lm_decoder.DecodeNumpy(decoder, logits_reordered, np.zeros_like(logits_reordered), np.log(args.lm_beta))
             decoder.FinishDecoding()
             res = decoder.result()
@@ -133,8 +134,15 @@ total_dist, total_words = 0, 0
 for t, p in zip(lm_results['true'], lm_results['pred']):
     t_cl = remove_punctuation(t or "")
     p_cl = remove_punctuation(p or "")
-    total_dist += editdistance.eval(t_cl.split(), p_cl.split())
+    dist = editdistance.eval(t_cl.split(), p_cl.split())
+    total_dist += dist
     total_words += len(t_cl.split())
+    
+    print(f'{lm_results["session"][len(lm_results["session"]) - len(lm_results["pred"]) + 0]}') # debug print
+    print(f'True: {t_cl}')
+    print(f'Pred: {p_cl}')
+    print(f'WER: {dist / len(t_cl.split()):.2f}' if len(t_cl.split()) > 0 else 'N/A')
+    print()
 
 print(f"\nAggregate WER: {100 * total_dist / total_words:.2f}%" if total_words > 0 else "N/A")
 df = pd.DataFrame(lm_results)

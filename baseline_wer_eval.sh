@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -N 1
-#SBATCH --partition=volta-gpu
+#SBATCH --partition=gpu
 #SBATCH --qos=gpu_access
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=01:00:00
+#SBATCH --time=00:40:00
 #SBATCH --output=logs/wer_eval_%j.txt
 #SBATCH --error=logs/wer_eval_%j.err
 

@@ -37,7 +37,7 @@ if [ ! -f "$PYTHON_EXEC" ]; then
     exit 1
 fi
 
-# 6. Run Evaluation (FIXED MODEL PATH)
+# 6. Run Evaluation
 echo "Starting evaluation..."
 cd "$PROJECT_ROOT/baseline"
 
@@ -47,6 +47,6 @@ cd "$PROJECT_ROOT/baseline"
     --lm_path "$PROJECT_ROOT/language_model/pretrained_language_models/languageModel" \
     --lm_alpha 0.55 \
     --lm_beta 90 \
-    --acoustic_scale 0.8 \
+    --acoustic_scale 0.325 \
     --eval_type val \
     --gpu_number 0

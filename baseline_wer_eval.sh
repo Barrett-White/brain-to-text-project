@@ -42,7 +42,7 @@ echo "Starting evaluation..."
 cd "$PROJECT_ROOT/baseline"
 
 "$PYTHON_EXEC" evaluate_model.py \
-    --model_path "$PROJECT_ROOT/baseline/trained_models/finetuned_rnn_unfrozen" \
+    --model_path "$PROJECT_ROOT/baseline/trained_models/baseline_rnn" \
     --data_dir "$PROJECT_ROOT/data/hdf5_data_final" \
     --lm_path "$PROJECT_ROOT/language_model/pretrained_language_models/languageModel" \
     --lm_alpha 0.55 \

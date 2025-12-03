@@ -1,6 +1,15 @@
 import os
 import torch
+import sys
 import numpy as np
+
+try:
+    sys.modules['numpy._core'] = np.core
+    sys.modules['numpy._core.multiarray'] = np.core.multiarray
+except AttributeError:
+    pass
+
+
 import pandas as pd
 from omegaconf import OmegaConf
 import time
@@ -8,7 +17,7 @@ from tqdm import tqdm
 import editdistance
 import argparse
 import lm_decoder
-import re  # <--- FIXED: Added missing import
+import re  
 from rnn_model import GRUDecoder
 
 # --- HELPER FUNCTIONS ---

@@ -1,4 +1,10 @@
+import sys
 import os
+
+import numpy
+sys.modules['numpy._core'] = numpy.core
+sys.modules['numpy._core.multiarray'] = numpy.core.multiarray
+
 import torch
 import numpy as np
 import pandas as pd

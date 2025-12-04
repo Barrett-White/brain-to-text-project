@@ -14,7 +14,7 @@ echo "Job started on $(hostname)"
 module purge
 module load anaconda
 
-# 2. Define Paths (Absolute)
+# 2. Define Paths
 PROJECT_ROOT="/work/users/s/j/sjshen/brain-to-text-project"
 ENV_PATH="$PROJECT_ROOT/b2txt25_lm"
 PYTHON_EXEC="$ENV_PATH/bin/python"
@@ -23,12 +23,12 @@ PYTHON_EXEC="$ENV_PATH/bin/python"
 source /nas/longleaf/rhel9/apps/anaconda/2024.02/etc/profile.d/conda.sh
 conda activate "$ENV_PATH"
 
-# 4. Isolation & Safety 
+# 4. Isolation
 unset PYTHONPATH
 export PYTHONNOUSERSITE=1
 export LD_LIBRARY_PATH="$ENV_PATH/lib/python3.9/site-packages/nvidia/cublas/lib:$ENV_PATH/lib/python3.9/site-packages/nvidia/cudnn/lib:$LD_LIBRARY_PATH"
 
-# 5. Verify Execution
+# 5. Verify Python
 if [ ! -f "$PYTHON_EXEC" ]; then
     echo "CRITICAL: Python binary not found at $PYTHON_EXEC"
     exit 1
@@ -40,6 +40,8 @@ cd "$PROJECT_ROOT"
 
 "$PYTHON_EXEC" baseline/eval_teammate.py \
     --npz_file "$PROJECT_ROOT/data/teammate_logits/val_logits_latest.npz" \
+    --model_path "$PROJECT_ROOT/baseline/trained_models/finetuned_rnn_unfrozen" \
+    --data_dir "$PROJECT_ROOT/data/hdf5_data_final" \
     --lm_path "$PROJECT_ROOT/language_model/pretrained_language_models/languageModel" \
     --lm_beta 90.0 \
     --acoustic_scale 0.325 \

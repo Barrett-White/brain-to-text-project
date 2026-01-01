@@ -1,4 +1,39 @@
-# Brain-to-Text Project
+# Brain-to-Text Neural Decoding
+
+## Overview
+This project explores neural decoding methods for translating recorded brain signals into phoneme-level and text outputs.
+The goal is to improve performance over an original GRU-based baseline by experimenting with stronger sequence modeling
+approaches, preprocessing strategies, and evaluation workflows.
+
+This repository is forked from a collaborative group project. This fork highlights my individual contributions and
+experimentation.
+
+## Problem
+Decoding neural activity into language is challenging due to:
+- High temporal noise in neural signals
+- Long-range dependencies in phoneme and word sequences
+- Sensitivity of sequence models to preprocessing and smoothing choices
+
+The baseline implementation relied on a GRU-based model, which provided a strong starting point but left room for
+improvements in temporal modeling and robustness.
+
+## My Contributions
+My personal contributions to this project focused on improving the original baseline and evaluating alternative
+modeling choices. Specifically, I worked on:
+- Improving upon the original GRU baseline architecture
+- Experimenting with stronger sequence modeling approaches
+- Designing and tuning preprocessing and smoothing strategies
+- Running controlled experiments and analyzing results using error-rate metrics
+- Contributing to evaluation methodology and result interpretation
+
+## Approach & Results
+Model development followed an iterative process guided by phoneme and word error rate metrics. Improvements were driven by:
+- Better handling of temporal dependencies
+- Reduced sensitivity to noise through preprocessing
+- More stable training dynamics during optimization
+
+These changes resulted in measurable improvements over the original GRU baseline in controlled evaluations.
+
 
 ## Prerequisites
 

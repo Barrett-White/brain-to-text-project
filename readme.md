@@ -20,10 +20,8 @@ improvements in temporal modeling and robustness.
 ## My Contributions
 My personal contributions to this project focused on improving the original baseline and evaluating alternative
 modeling choices. Specifically, I worked on:
-- Improving upon the original GRU baseline architecture
-- Experimenting with stronger sequence modeling approaches
+- Improving upon the original GRU baseline architecture with a transformer architecture
 - Designing and tuning preprocessing and smoothing strategies
-- Running controlled experiments and analyzing results using error-rate metrics
 - Contributing to evaluation methodology and result interpretation
 
 ## Approach & Results
